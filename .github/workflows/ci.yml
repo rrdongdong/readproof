@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Syntax gate
+        run: python -m compileall -q readproof tests
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Gate smoke — illegal transitions must exit 5
+        run: |
+          python - <<'PY'
+          from readproof import states as s
+
+          assert s.check_transition(s.UNREAD, s.FETCHED) == s.FETCHED
+          for target in (s.READ_PARTIAL, s.READ_FULL, s.VERIFIED):
+              try:
+                  s.check_transition(s.FETCH_FAILED, target, via=s.MANUAL_UPLOAD)
+              except s.IllegalTransition as exc:
+                  assert exc.exit_code == 5
+              else:
+                  raise SystemExit("manual upload skipped the reading receipt: %s" % target)
+          assert not s.can_write(s.FETCHED, "eight_questions")
+          assert s.can_write(s.VERIFIED, "gap_entry")
+          print("state machine gates hold")
+          PY
+
+      - name: No third-party imports
+        run: |
+          python - <<'PY'
+          import ast, pathlib
+
+          allowed = {"__future__", "unittest", "readproof"}
+          bad = []
+          for path in pathlib.Path("readproof").rglob("*.py"):
+              tree = ast.parse(path.read_text(encoding="utf-8"))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      names = [a.name.split(".")[0] for a in node.names]
+                  elif isinstance(node, ast.ImportFrom):
+                      if node.level:      # relative import inside the package
+                          continue
+                      names = [(node.module or "").split(".")[0]]
+                  else:
+                      continue
+                  bad += ["%s: %s" % (path, n) for n in names if n and n not in allowed]
+          if bad:
+              raise SystemExit("unexpected imports:\n" + "\n".join(bad))
+          print("stdlib only: ok")
+          PY
