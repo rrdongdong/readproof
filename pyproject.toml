@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "readproof"
+version = "0.2.0"
+description = "A research assistant that refuses to pretend it read something."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["literature-review", "research-tools", "agent", "dsh", "state-machine"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/rrdongdong/readproof"
+
+[project.scripts]
+readproof = "readproof.cli:main"
+
+[tool.setuptools]
+packages = ["readproof"]

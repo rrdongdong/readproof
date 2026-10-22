@@ -28,6 +28,60 @@ that contradicts both. Free-text notes cannot hold seams. That failure is **grap
 
 Most of this repo exists to make those two failures impossible.
 
+## Quickstart
+
+No dependencies — Python 3.9+ and the standard library only.
+
+```console
+$ pip install -e .                 # or skip install: export PYTHONPATH=$PWD
+$ readproof demo                   # the state machine; needs no ledger
+$ readproof init
+created /path/readproof-ledger.json
+$ readproof add 07 --title "A Paper Title" --venue "CVPR 2026" --arxiv 2601.00001
+07 added at UNREAD
+$ readproof advance 07 FETCHED
+07 -> FETCHED
+$ readproof advance 07 READ_FULL
+readproof: refusing FETCHED -> READ_FULL: missing reading-receipt fingerprints:
+  number_with_locator, hyperparameters, negative_quote, body_detail
+$ echo $?
+6
+$ readproof receipt 07 \
+    --number   "Table II: 41.2 / 38.7 dB (p.5)" \
+    --hyper    "lr=2e-4, iters=20k (sec IV-A, p.4)" \
+    --negative "we do not report motion blur (sec V-D, p.7)" \
+    --body     "cosine schedule only in a p.3 footnote"
+receipt stored for 07 (4 fingerprints)
+$ readproof advance 07 READ_FULL
+07 -> READ_FULL
+$ readproof status 07
+07  READ_FULL
+  may write: metadata, abstract_note, eight_questions
+  receipt : complete
+  history :
+    2026-10-22T13:37:50+00:00  None -> UNREAD (pipeline)
+    2026-10-22T13:37:50+00:00  UNREAD -> FETCHED (pipeline)
+    2026-10-22T13:38:53+00:00  FETCHED -> READ_FULL (pipeline)
+```
+
+`python -m readproof …` behaves identically if you would rather not install.
+
+### Exit codes are the contract
+
+The gates are only real if a caller cannot ignore them, so failure is an exit code, not a warning:
+
+| Code | Meaning |
+|---|---|
+| `0` | ok |
+| `1` | generic error (unknown paper, unreadable ledger, bad input) |
+| `2` | duplicate paper — **blocked, not merged** |
+| `5` | illegal state transition (including manual upload skipping ahead) |
+| `6` | incomplete reading receipt |
+
+Commands: `init`, `add`, `advance`, `receipt`, `check`, `status`, `list`, `demo`. The ledger is a plain
+JSON file (`--ledger`, or `$READPROOF_LEDGER`); state changes are appended to a per-paper `history`, so
+every jump is auditable after the fact.
+
 ## How it works
 
 ```
@@ -117,10 +171,17 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 
 | Piece | State |
 |---|---|
-| State machine + capability gating | ✅ implemented (`readproof/states.py`), tested |
-| Reading receipt / spot-check | designed, not implemented |
+| State machine + capability gating (`readproof/states.py`) | ✅ implemented, 18 tests |
+| JSON ledger + CLI with gated exit codes (`store.py`, `cli.py`) | ✅ runnable, 24 tests |
+| Reading receipt **validation** | ✅ implemented (rejects abstract-only receipts) |
+| Reading receipt **extraction** from a PDF | designed, not implemented |
+| Spot-check challenge | designed, not implemented |
 | Controlled vocabulary + graph build | designed, not implemented |
 | Gap queries G1–G6 | designed, not implemented |
+
+What `readproof` can do today, end to end: keep a deduplicated ledger, refuse to advance a paper past
+`FETCHED` without a complete reading receipt, and fail with a specific exit code when a rule is broken.
+What it cannot do yet: obtain or read the PDF itself, or build the problem graph.
 
 Design rationale: [`docs/design.md`](./docs/design.md).
 

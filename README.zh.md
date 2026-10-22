@@ -18,6 +18,51 @@
 
 这个仓库的大部分内容，就是为了让这两件事发生不了。
 
+## 快速开始
+
+零依赖 —— Python 3.9+ 和标准库就够。
+
+```console
+$ pip install -e .                 # 或者不装：export PYTHONPATH=$PWD
+$ readproof demo                   # 打印状态机，不需要台账
+$ readproof init
+created /path/readproof-ledger.json
+$ readproof add 07 --title "A Paper Title" --venue "CVPR 2026" --arxiv 2601.00001
+07 added at UNREAD
+$ readproof advance 07 FETCHED
+07 -> FETCHED
+$ readproof advance 07 READ_FULL
+readproof: refusing FETCHED -> READ_FULL: missing reading-receipt fingerprints:
+  number_with_locator, hyperparameters, negative_quote, body_detail
+$ echo $?
+6
+$ readproof receipt 07 \
+    --number   "Table II: 41.2 / 38.7 dB (p.5)" \
+    --hyper    "lr=2e-4, iters=20k (sec IV-A, p.4)" \
+    --negative "we do not report motion blur (sec V-D, p.7)" \
+    --body     "cosine schedule only in a p.3 footnote"
+receipt stored for 07 (4 fingerprints)
+$ readproof advance 07 READ_FULL
+07 -> READ_FULL
+```
+
+不想安装时用 `python -m readproof …`，行为完全一致。
+
+### 退出码就是契约
+
+闸门只有在调用方**无法忽略**时才算真的存在，所以失败给的是退出码，不是警告：
+
+| 码 | 含义 |
+|---|---|
+| `0` | 正常 |
+| `1` | 一般错误（未知论文、台账不可读、输入非法） |
+| `2` | 论文重复 —— **阻断，不合并** |
+| `5` | 非法状态转移（含手动上传越级） |
+| `6` | 读证不完整 |
+
+命令：`init`、`add`、`advance`、`receipt`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
+（`--ledger` 或 `$READPROOF_LEDGER`）；每次状态变化都进该论文的 `history`，事后可审计。
+
 ## 状态机（治假读）
 
 ```
@@ -97,10 +142,16 @@ UNREAD ─────────────┤              ├──▶ FETC
 
 | 部分 | 状态 |
 |---|---|
-| 状态机 + 能力门控 | ✅ 已实现（`readproof/states.py`），有测试 |
-| 读证 / 随机抽查 | 设计完成，未实现 |
+| 状态机 + 能力门控（`readproof/states.py`） | ✅ 已实现，18 个测试 |
+| JSON 台账 + 带闸门退出码的 CLI（`store.py`、`cli.py`） | ✅ 可运行，24 个测试 |
+| 读证**校验** | ✅ 已实现（只有摘要的读证会被拒） |
+| 读证**抽取**（从 PDF 里找出四项指纹） | 设计完成，未实现 |
+| 随机抽查 | 设计完成，未实现 |
 | 受控词表 + 图构建 | 设计完成，未实现 |
 | 缺口查询 G1–G6 | 设计完成，未实现 |
+
+今天能端到端做到的：维护一份去重台账；没有完整读证就**拒绝**把论文推过 `FETCHED`；违反规则时给出明确退出码。
+还不能做的：自己获取/读取 PDF，以及构建问题图谱。
 
 设计说明：[`docs/design.md`](./docs/design.md)
 

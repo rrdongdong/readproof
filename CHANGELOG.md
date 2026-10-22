@@ -1,8 +1,36 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.2.0 — unreleased
 
-First cut. Only the part that everything else depends on: the state machine.
+Runnable. The gates are now reachable from a shell, and every refusal is an exit code.
+
+### Added
+- `readproof/store.py` — JSON ledger, the single source of truth for reading state
+  - `add()` registers at `UNREAD` and rejects duplicates on id, folded title, arXiv id or DOI
+    (`DuplicatePaper`, exit 2)
+  - `advance()` validates the state edge and, for `READ_FULL`, requires a complete receipt
+    (`IllegalTransition` exit 5 / `IncompleteReceipt` exit 6)
+  - `set_receipt()` refuses to store an incomplete receipt — a partial receipt must not sit in the
+    ledger looking like progress
+  - atomic `save()`; per-paper `history` records every transition with timestamp, source and `via`
+- `readproof/cli.py` + `readproof/__main__.py` — commands `init`, `add`, `advance`, `receipt`,
+  `check`, `status`, `list`, `demo`; `--json` for machine output; `--ledger` / `$READPROOF_LEDGER`
+- `pyproject.toml` — installable, `readproof` console script, no runtime dependencies
+- 24 new tests (42 total): dedup folding, transition gates, receipt rejection, persistence round-trip,
+  CLI exit codes for all four failure classes
+- CI: CLI end-to-end step asserting exit codes 2 / 5 / 6, then the full path to `VERIFIED`
+
+### Changed
+- `normalize_identifier()` now folds `arXiv:` / `doi:` prefixes and version suffixes, so
+  `arXiv:2601.00001v2` and `2601.00001` collide instead of slipping past dedup
+
+### Fixed
+- arXiv/DOI dedup could be bypassed by writing the same identifier in a different form
+  (caught by a test, never shipped)
+
+## 0.1.0 — first cut
+
+The part everything else depends on: the state machine.
 
 ### Added
 - `readproof/states.py` — six-state paper reading state machine

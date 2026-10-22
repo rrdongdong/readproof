@@ -22,6 +22,14 @@ jobs:
       - name: Syntax gate
         run: python -m compileall -q readproof tests
 
+      - name: Install (console script works)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          readproof demo > /dev/null
+          readproof --help > /dev/null
+          python -c "import readproof; print('version', readproof.__version__)"
+
       - name: Unit tests
         run: python -m unittest discover -s tests -v
 
@@ -43,12 +51,50 @@ jobs:
           print("state machine gates hold")
           PY
 
+      - name: CLI end-to-end (exit codes are the contract)
+        run: |
+          set -euo pipefail
+          cd "$(mktemp -d)"
+          export PYTHONPATH="$GITHUB_WORKSPACE"
+          python -m readproof init
+          python -m readproof add 07 --title "A Paper Title" --arxiv 2601.00001
+          python -m readproof advance 07 FETCHED
+
+          set +e
+          python -m readproof add 08 --title "a paper title"; dup=$?
+          python -m readproof advance 07 VERIFIED; jump=$?
+          python -m readproof advance 07 READ_FULL; noreceipt=$?
+          set -e
+
+          test "$dup" = "2"       || { echo "duplicate: expected 2, got $dup"; exit 1; }
+          test "$jump" = "5"      || { echo "illegal jump: expected 5, got $jump"; exit 1; }
+          test "$noreceipt" = "6" || { echo "missing receipt: expected 6, got $noreceipt"; exit 1; }
+
+          cat > receipt.json <<'JSON'
+          {
+            "number_with_locator": "Table II: 41.2 / 38.7 dB (p.5)",
+            "hyperparameters": "lr=2e-4, iters=20k (sec IV-A, p.4)",
+            "negative_quote": "we do not report results under motion blur (sec V-D, p.7)",
+            "body_detail": "cosine schedule appears only in a p.3 footnote"
+          }
+          JSON
+
+          python -m readproof receipt 07 --file receipt.json
+          python -m readproof advance 07 READ_FULL
+          python -m readproof advance 07 VERIFIED
+          python -m readproof status 07
+          python -m readproof list
+          echo "cli end-to-end: ok"
+
       - name: No third-party imports
         run: |
           python - <<'PY'
           import ast, pathlib
 
-          allowed = {"__future__", "unittest", "readproof"}
+          allowed = {
+              "__future__", "argparse", "json", "os", "re", "sys",
+              "tempfile", "datetime", "unittest", "readproof",
+          }
           bad = []
           for path in pathlib.Path("readproof").rglob("*.py"):
               tree = ast.parse(path.read_text(encoding="utf-8"))

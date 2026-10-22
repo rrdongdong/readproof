@@ -1,0 +1,312 @@
+"""Command line interface.
+
+Everything the agent does to a paper's state goes through here, so the gates are
+enforced in one place whether a human or a skill is driving.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+from . import states
+from .store import (
+    DEFAULT_FILENAME,
+    Ledger,
+    LedgerError,
+)
+
+EXIT_USAGE = 64
+
+EPILOG = """\
+exit codes
+  0   ok
+  1   generic error (unknown paper, bad ledger, bad input)
+  2   duplicate paper (blocked, not merged)
+  5   illegal state transition
+  6   incomplete reading receipt
+
+examples
+  readproof init
+  readproof add 07 --title "A Paper Title" --venue "CVPR 2026" --arxiv 2601.00001
+  readproof advance 07 FETCHED
+  readproof advance 07 READ_FULL                    # blocked without a receipt
+  readproof receipt 07 --file receipt.json
+  readproof advance 07 READ_FULL
+  readproof receipt 08 --number "Table II: 41.2 dB (p.5)" \\
+      --hyper "lr=2e-4 (sec IV-A, p.4)" \\
+      --negative "we do not report motion blur (sec V-D, p.7)" \\
+      --body "cosine schedule only in a p.3 footnote"
+"""
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="readproof",
+        description="A research assistant that refuses to pretend it read something.",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--ledger",
+        default=os.environ.get("READPROOF_LEDGER", DEFAULT_FILENAME),
+        help="ledger file (default: $READPROOF_LEDGER or ./%s)" % DEFAULT_FILENAME,
+    )
+    parser.add_argument("--json", action="store_true", help="machine-readable output")
+    sub = parser.add_subparsers(dest="command", metavar="command")
+
+    sub.add_parser("init", help="create an empty ledger")
+    sub.add_parser("demo", help="show the state machine")
+
+    add = sub.add_parser("add", help="register a paper at UNREAD")
+    add.add_argument("paper_id")
+    add.add_argument("--title", required=True)
+    add.add_argument("--venue", default="")
+    add.add_argument("--arxiv", default="")
+    add.add_argument("--doi", default="")
+
+    adv = sub.add_parser("advance", help="move a paper to another state")
+    adv.add_argument("paper_id")
+    adv.add_argument("state", choices=list(states.STATES))
+    adv.add_argument(
+        "--via",
+        default=states.PIPELINE,
+        choices=list(states.SOURCES),
+        help="how the file was obtained",
+    )
+
+    rec = sub.add_parser("receipt", help="attach a reading receipt to a paper")
+    rec.add_argument("paper_id")
+    rec.add_argument("--file", help="JSON file with the four fingerprints")
+    rec.add_argument("--number", help="number_with_locator: value + table + page")
+    rec.add_argument("--hyper", help="hyperparameters: values + section")
+    rec.add_argument("--negative", help="negative_quote: a verbatim limitation")
+    rec.add_argument("--body", help="body_detail: a non-conclusory body detail")
+
+    chk = sub.add_parser("check", help="validate a receipt JSON without touching the ledger")
+    chk.add_argument("--file", required=True)
+
+    sta = sub.add_parser("status", help="show one paper")
+    sta.add_argument("paper_id")
+
+    lst = sub.add_parser("list", help="list papers")
+    lst.add_argument("--state", choices=list(states.STATES))
+
+    return parser
+
+
+def emit(payload, as_json, text=None):
+    if as_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(text if text is not None else json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def cmd_init(args):
+    ledger = Ledger.open(args.ledger, create=True)
+    if os.path.exists(ledger.path) and ledger.papers:
+        raise LedgerError("ledger already exists and is not empty: %s" % ledger.path)
+    path = ledger.save()
+    emit({"ledger": path, "papers": 0}, args.json, "created %s" % path)
+    return 0
+
+
+def cmd_demo(args):
+    rows = []
+    for state in states.STATES:
+        artefact = [a for a in states.ARTEFACTS if states.can_write(state, a)]
+        rows.append(
+            {
+                "state": state,
+                "next": list(states.next_states(state)),
+                "may_write": artefact,
+            }
+        )
+    if args.json:
+        emit({"states": rows, "receipt_fields": list(states.RECEIPT_FIELDS)}, True)
+        return 0
+    width = max(len(r["state"]) for r in rows)
+    print("%-*s  %-34s  %s" % (width, "state", "next (via pipeline)", "may write"))
+    print("%s  %s  %s" % ("-" * width, "-" * 34, "-" * 34))
+    for row in rows:
+        print(
+            "%-*s  %-34s  %s"
+            % (
+                width,
+                row["state"],
+                ", ".join(row["next"]) or "(terminal)",
+                ", ".join(row["may_write"]) or "-",
+            )
+        )
+    print("\nmanual upload may only reach: %s" % states.FETCHED)
+    print("receipt needs: %s" % ", ".join(states.RECEIPT_FIELDS))
+    return 0
+
+
+def cmd_add(args):
+    ledger = Ledger.open(args.ledger, create=True)
+    paper = ledger.add(
+        args.paper_id,
+        args.title,
+        venue=args.venue,
+        arxiv=args.arxiv,
+        doi=args.doi,
+    )
+    ledger.save()
+    emit(
+        {"id": paper["id"], "state": paper["state"], "ledger": ledger.path},
+        args.json,
+        "%s added at %s" % (paper["id"], paper["state"]),
+    )
+    return 0
+
+
+def cmd_advance(args):
+    ledger = Ledger.open(args.ledger)
+    paper = ledger.advance(args.paper_id, args.state, via=args.via)
+    ledger.save()
+    emit(
+        {"id": paper["id"], "state": paper["state"], "via": args.via},
+        args.json,
+        "%s -> %s" % (paper["id"], paper["state"]),
+    )
+    return 0
+
+
+def _receipt_payload(args):
+    if args.file:
+        with open(args.file, encoding="utf-8") as handle:
+            return json.load(handle)
+    return {
+        "number_with_locator": args.number or "",
+        "hyperparameters": args.hyper or "",
+        "negative_quote": args.negative or "",
+        "body_detail": args.body or "",
+    }
+
+
+def cmd_receipt(args):
+    receipt = _receipt_payload(args)
+    ledger = Ledger.open(args.ledger)
+    stored = ledger.set_receipt(args.paper_id, receipt)
+    ledger.save()
+    emit(
+        {"id": args.paper_id, "receipt": stored},
+        args.json,
+        "receipt stored for %s (%d fingerprints)"
+        % (args.paper_id, len(states.RECEIPT_FIELDS)),
+    )
+    return 0
+
+
+def cmd_check(args):
+    with open(args.file, encoding="utf-8") as handle:
+        receipt = json.load(handle)
+    missing = states.missing_receipt_fields(receipt)
+    payload = {
+        "complete": not missing,
+        "missing": missing,
+        "present": [f for f in states.RECEIPT_FIELDS if f not in missing],
+    }
+    if args.json:
+        emit(payload, True)
+    else:
+        print("complete:", "yes" if payload["complete"] else "no")
+        for field in states.RECEIPT_FIELDS:
+            mark = "x" if field in missing else "v"
+            print("  [%s] %s" % (mark, field))
+    return 0 if payload["complete"] else 6
+
+
+def cmd_status(args):
+    ledger = Ledger.open(args.ledger)
+    paper = ledger.require(args.paper_id)
+    if args.json:
+        emit(paper, True)
+        return 0
+    print("%s  %s" % (paper["id"], paper["state"]))
+    print("  title   : %s" % paper.get("title"))
+    for field in ("venue", "arxiv", "doi"):
+        if paper.get(field):
+            print("  %-8s: %s" % (field, paper[field]))
+    print("  source  : %s" % paper.get("source"))
+    allowed = [a for a in states.ARTEFACTS if states.can_write(paper["state"], a)]
+    print("  may write: %s" % (", ".join(allowed) or "-"))
+    receipt = paper.get("receipt")
+    if receipt:
+        print("  receipt : complete")
+    else:
+        print("  receipt : none (cannot become %s)" % states.READ_FULL)
+    history = paper.get("history") or []
+    if history:
+        print("  history :")
+        for event in history:
+            print(
+                "    %s  %s -> %s (%s)"
+                % (event.get("at"), event.get("from"), event.get("to"), event.get("via"))
+            )
+    return 0
+
+
+def cmd_list(args):
+    ledger = Ledger.open(args.ledger)
+    papers = [
+        paper
+        for paper in ledger.papers
+        if args.state is None or paper.get("state") == args.state
+    ]
+    if args.json:
+        emit({"count": len(papers), "papers": papers}, True)
+        return 0
+    if not papers:
+        print("(no papers)")
+        return 0
+    width = max(len(p.get("id", "")) for p in papers)
+    for paper in papers:
+        print(
+            "%-*s  %-14s  %s"
+            % (width, paper.get("id"), paper.get("state"), paper.get("title"))
+        )
+    tally = ledger.counts()
+    summary = ", ".join("%s=%d" % (k, v) for k, v in tally.items() if v)
+    print("\n%d paper(s): %s" % (len(papers), summary or "none"))
+    return 0
+
+
+COMMANDS = {
+    "init": cmd_init,
+    "demo": cmd_demo,
+    "add": cmd_add,
+    "advance": cmd_advance,
+    "receipt": cmd_receipt,
+    "check": cmd_check,
+    "status": cmd_status,
+    "list": cmd_list,
+}
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not args.command:
+        parser.print_help()
+        return EXIT_USAGE
+    handler = COMMANDS[args.command]
+    try:
+        return handler(args)
+    except (LedgerError, states.IllegalTransition) as exc:
+        code = getattr(exc, "exit_code", 1)
+        print("readproof: %s" % exc, file=sys.stderr)
+        return code
+    except FileNotFoundError as exc:
+        print("readproof: file not found: %s" % exc.filename, file=sys.stderr)
+        return 1
+    except ValueError as exc:  # bad JSON in --file
+        print("readproof: %s" % exc, file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
