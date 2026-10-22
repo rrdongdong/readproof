@@ -6,6 +6,8 @@
 
 **一个拒绝假装读过论文的研究助理 agent。**
 
+基于 [DSH](https://github.com/deepseek-ai/deepseek-harness)（DeepSeek Harness，Cordis 插件架构）：它是 DSH 科研助理栈里的**引擎**，不是独立聊天机器人。哪一层属于 DSH、哪一层属于本仓库，见[「与 DSH 的关系」](#与-dsh-的关系)。
+
 ---
 
 ## 它治的两个病
@@ -102,18 +104,33 @@ UNREAD ─────────────┤              ├──▶ FETC
 
 设计说明：[`docs/design.md`](./docs/design.md)
 
-## 生态
+## 与 DSH 的关系
 
-`readproof` 是引擎。它复用两个独立版本化的部件，而不是把它们吞进来：
+[DSH](https://github.com/deepseek-ai/deepseek-harness) 是 Cordis 架构的 agent harness：提供工具契约、技能/插件模型、沙箱、会话持久化和消息通道。`readproof` 是插进去的**引擎**。整套是分层的，而且各层**刻意分开版本化**：
 
-- [`paper-trawl`](https://github.com/rrdongdong/paper-trawl) — 一个管线工序：检索 → 分层 → 精读 → 台账
-- [`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) — 读的能力：PDF 抽取 + `%%EOF` 完整性校验
+| 层 | 决定什么 | 在哪 |
+|---|---|---|
+| **能力层** | 怎么读一个 PDF：抽取、`%%EOF` 完整性、下载重试 | [`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) —— DSH **插件**（v0.4.2） |
+| **流程层** | 怎么读：检索 → 分层 → 精读 → 台账 → 总结 | [`paper-trawl`](https://github.com/rrdongdong/paper-trawl) —— DSH **技能**（v1.0.1） |
+| **引擎层** | 什么算读过、什么能写、缺口怎么找 | **本仓库** |
+| **纪律层** | 规则本身：证据分级、禁止措辞、闸门语义 | 本仓库 + 技能的提示词 |
 
 ```
-readproof      引擎：状态机、证据闸门、问题图谱、缺口查询
-├── paper-trawl    它跑的一个工序
-└── dsh-pdf        它怎么读
+DSH（harness：工具、技能、沙箱、会话、通道）
+└── readproof   引擎：状态机、证据闸门、问题图谱、缺口查询
+    ├── paper-trawl   它跑的一个工序   （DSH 技能）
+    └── dsh-pdf       它怎么读         （DSH 插件）
 ```
+
+### 引擎本身不绑框架
+
+`readproof/states.py` **只用标准库，不 import 任何 DSH 代码**。这是刻意的，不是巧合：
+
+> 决定「一条结论能不能写」的那部分，必须能在没有 agent 的情况下被测试——在 CI 里、每次提交、三个 Python 版本都跑。
+
+只有连着活体 agent 才能验证的闸门，等于没人验证的闸门。DSH 提供工具与技能边界，但不提供规则；所以规则留成可移植的 Python，让 CI 反复砸。
+
+> **与 DeepSeek 无隶属关系。** "DeepSeek Harness (DSH)" 与 "Cordis" 仅作描述性使用。
 
 ## License
 

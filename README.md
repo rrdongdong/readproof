@@ -7,6 +7,10 @@
 
 **A research-assistant agent that refuses to pretend it read something.**
 
+Built on [DSH](https://github.com/deepseek-ai/deepseek-harness) (DeepSeek Harness, Cordis plugin
+architecture) — it is the engine of a DSH research-assistant stack, not a standalone chatbot.
+See [Built on DSH](#built-on-dsh) for exactly which layer is DSH and which is this repo.
+
 English | [中文](./README.zh.md)
 
 ---
@@ -120,18 +124,38 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 
 Design rationale: [`docs/design.md`](./docs/design.md).
 
-## Ecosystem
+## Built on DSH
 
-`readproof` is the engine. It reuses two separately versioned pieces rather than absorbing them:
+[DSH](https://github.com/deepseek-ai/deepseek-harness) is a Cordis-based agent harness: it supplies the
+tool contract, the skill/plugin model, the sandbox, session persistence and the chat channels. `readproof`
+is the **engine** that plugs into it. The stack is layered, and the pieces are versioned separately on
+purpose:
 
-- [`paper-trawl`](https://github.com/rrdongdong/paper-trawl) — one pipeline stage: search → tier → deep read → ledger
-- [`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) — the reading capability: PDF extraction with `%%EOF` integrity checks
+| Layer | What it settles | Where |
+|---|---|---|
+| **capability** | reading a PDF: extraction, `%%EOF` integrity, download retries | [`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) — a DSH **plugin** (v0.4.2) |
+| **pipeline** | how to read: search → tier → deep read → ledger → summary | [`paper-trawl`](https://github.com/rrdongdong/paper-trawl) — a DSH **skill** (v1.0.1) |
+| **engine** | what counts as read, what may be written, how gaps are found | **this repo** |
+| **discipline** | the rules themselves: evidence grades, forbidden phrasings, gate semantics | this repo + the skill's prompts |
 
 ```
-readproof      engine: state machine, evidence gates, problem graph, gap queries
-├── paper-trawl    a stage it runs
-└── dsh-pdf        how it reads
+DSH  (harness: tools, skills, sandbox, sessions, channels)
+└── readproof   engine: state machine, evidence gates, problem graph, gap queries
+    ├── paper-trawl   a pipeline stage it runs   (DSH skill)
+    └── dsh-pdf       how it reads               (DSH plugin)
 ```
+
+### The engine itself is framework-free
+
+`readproof/states.py` is **stdlib-only and imports nothing from DSH**. That is deliberate, not incidental:
+
+> the part that decides *whether a claim may be written* must be testable without a running agent —
+> in CI, on every commit, on three Python versions.
+
+A gate that can only be exercised by talking to a live agent is a gate nobody exercises. DSH supplies the
+tool and skill boundary; it does not supply the rules, so the rules stay portable Python that CI can hammer.
+
+> **Not affiliated with DeepSeek.** "DeepSeek Harness (DSH)" and "Cordis" are used descriptively.
 
 ## License
 
