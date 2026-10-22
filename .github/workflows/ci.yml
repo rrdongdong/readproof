@@ -84,6 +84,25 @@ jobs:
           python -m readproof advance 07 VERIFIED
           python -m readproof status 07
           python -m readproof list
+
+          # receipt extraction: a full paper yields four fingerprints; an abstract
+          # must be refused with exit 6 and must not move the paper.
+          FIXTURES="$GITHUB_WORKSPACE/tests/fixtures"
+          python -m readproof extract "$FIXTURES/full_paper.txt"
+
+          set +e
+          python -m readproof extract "$FIXTURES/abstract_only.txt"; abstract=$?
+          set -e
+          test "$abstract" = "6" || { echo "abstract-only: expected 6, got $abstract"; exit 1; }
+
+          python -m readproof add 08 --title "Another Full Paper"
+          python -m readproof advance 08 FETCHED
+          set +e
+          python -m readproof receipt 08 --from-text "$FIXTURES/abstract_only.txt"; bad=$?
+          set -e
+          test "$bad" = "6" || { echo "abstract receipt: expected 6, got $bad"; exit 1; }
+          python -m readproof receipt 08 --from-text "$FIXTURES/full_paper.txt"
+          python -m readproof advance 08 READ_FULL
           echo "cli end-to-end: ok"
 
       - name: No third-party imports
@@ -93,7 +112,7 @@ jobs:
 
           allowed = {
               "__future__", "argparse", "json", "os", "re", "sys",
-              "tempfile", "datetime", "unittest", "readproof",
+              "tempfile", "datetime", "pathlib", "unittest", "readproof",
           }
           bad = []
           for path in pathlib.Path("readproof").rglob("*.py"):

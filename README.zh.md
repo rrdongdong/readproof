@@ -36,15 +36,25 @@ readproof: refusing FETCHED -> READ_FULL: missing reading-receipt fingerprints:
   number_with_locator, hyperparameters, negative_quote, body_detail
 $ echo $?
 6
-$ readproof receipt 07 \
-    --number   "Table II: 41.2 / 38.7 dB (p.5)" \
-    --hyper    "lr=2e-4, iters=20k (sec IV-A, p.4)" \
-    --negative "we do not report motion blur (sec V-D, p.7)" \
-    --body     "cosine schedule only in a p.3 footnote"
+$ readproof receipt 07 --from-text paper.txt     # 让它自己去文本里找四项指纹
+verdict : full
+  pages : 7
+  chars : 13869
+  [v] number_with_locator  Table II: 41.2 dB / 38.7 dB / 36.4 dB (p.5)
+  [v] hyperparameters      lr=1e-4, batch=4, iters=30000 (sec Experiments, p.5)
+  [v] negative_quote       We do not evaluate on real underwater sequences ... (sec Limitations, p.6)
+  [v] body_detail          We implement the residual weighting as a small module ... (sec Implementation, p.4)
 receipt stored for 07 (4 fingerprints)
 $ readproof advance 07 READ_FULL
 07 -> READ_FULL
 ```
+
+`paper.txt` 是带换页符（`\f`）分隔的纯文本，也就是 `pdftotext`、多数抽取器以及
+[`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) 的输出。**readproof 不自己解析 PDF**：标准库解析器恰好
+在 CVF/IEEE 文件最难的地方失效（子集化 CID 字体、页面藏在 `/ObjStm` 里），而抽出乱码比诚实失败更糟。
+
+也可以用 `--number/--hyper/--negative/--body` 手填四项，或用 `--file` 读 JSON。
+`readproof extract paper.txt` 只预览、不写入。
 
 不想安装时用 `python -m readproof …`，行为完全一致。
 
@@ -60,7 +70,7 @@ $ readproof advance 07 READ_FULL
 | `5` | 非法状态转移（含手动上传越级） |
 | `6` | 读证不完整 |
 
-命令：`init`、`add`、`advance`、`receipt`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
+命令：`init`、`add`、`advance`、`receipt`、`extract`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
 （`--ledger` 或 `$READPROOF_LEDGER`）；每次状态变化都进该论文的 `history`，事后可审计。
 
 ## 状态机（治假读）
@@ -145,13 +155,15 @@ UNREAD ─────────────┤              ├──▶ FETC
 | 状态机 + 能力门控（`readproof/states.py`） | ✅ 已实现，18 个测试 |
 | JSON 台账 + 带闸门退出码的 CLI（`store.py`、`cli.py`） | ✅ 可运行，24 个测试 |
 | 读证**校验** | ✅ 已实现（只有摘要的读证会被拒） |
-| 读证**抽取**（从 PDF 里找出四项指纹） | 设计完成，未实现 |
+| 读证**抽取**（从已抽好的文本里找四项指纹，`receipt.py`） | ✅ 已实现，19 个测试 |
+| PDF → 文本（交给 `dsh-pdf`） | 刻意不做 |
 | 随机抽查 | 设计完成，未实现 |
 | 受控词表 + 图构建 | 设计完成，未实现 |
 | 缺口查询 G1–G6 | 设计完成，未实现 |
 
-今天能端到端做到的：维护一份去重台账；没有完整读证就**拒绝**把论文推过 `FETCHED`；违反规则时给出明确退出码。
-还不能做的：自己获取/读取 PDF，以及构建问题图谱。
+今天能端到端做到的：维护一份去重台账；从论文文本里抽出四项读证指纹，且当输入只是摘要或节选时**拒绝**；
+没有完整读证就拒绝把论文推过 `FETCHED`；每条规则被违反都给明确退出码。
+还不能做的：自己获取/抽取 PDF（交给 `dsh-pdf`），以及构建问题图谱。
 
 设计说明：[`docs/design.md`](./docs/design.md)
 

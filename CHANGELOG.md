@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0 — unreleased
+
+Receipt extraction. The gate that was only a validator now has a producer — and the
+producer can refuse.
+
+### Added
+- `readproof/receipt.py` — find the four fingerprints in extracted paper text
+  - `assess()` classifies the input as `full` / `partial` / `abstract_only` using page
+    count, character count, presence of an experiment section and a reference list;
+    thresholds are named constants and injectable
+  - `extract_receipt()` returns the four fingerprints with page and section
+    provenance, or raises `ReceiptExtractionError` (exit 6) — **it will not manufacture
+    fingerprints from an abstract**
+  - finders: caption + unit-bearing numbers (`number_with_locator`), hyperparameter
+    statements (`hyperparameters`), limitation sentences in the authors' own voice
+    (`negative_quote`), setup/implementation sentences (`body_detail`)
+  - does **not** parse PDFs: text extraction stays with `dsh-pdf`, whose pdfjs-dist
+    backend handles subsetted CID fonts that a stdlib parser cannot
+- `readproof receipt --from-text paper.txt` and `readproof extract paper.txt` (preview,
+  stores nothing); `--allow-partial` to inspect a refused input without accepting it
+- synthetic fixtures + generator (`tests/fixtures/make_fixtures.py`): a full 7-page
+  paper, an abstract-only paper, and a three-page excerpt
+- 21 new tests (63 total), including "abstract-only yields exit 6 and does not move the
+  paper" and "turning off the verdict gate must not invent fingerprints"
+- CI: extract a full paper, assert an abstract is refused with 6, then walk a second
+  paper to `READ_FULL` via extracted fingerprints
+
+### Fixed
+- `ReceiptExtractionError` was not caught by the CLI, so a refused receipt surfaced as
+  a traceback instead of exit 6
+- short excerpts were labelled `abstract_only`; a three-page excerpt of a real paper is
+  a `partial` read and the message now says so
+- section labels in `body_detail` came out lowercased
+
 ## 0.2.0 — unreleased
 
 Runnable. The gates are now reachable from a shell, and every refusal is an exit code.

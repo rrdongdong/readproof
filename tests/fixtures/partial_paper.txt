@@ -1,0 +1,9 @@
+Dense Reconstruction of Degraded Scenes from Sparse Views
+
+Abstract
+Short abstract for the partial fixture.I. Introduction
+We study a narrow scope and report what changes when the observation model is degraded. The setting assumes 5 calibrated views with overlapping coverage, and the reconstruction is optimised jointly over geometry and appearance so that both terms are updated from the same residual. Our treatment keeps the optimiser identical to the baseline and changes only the residual weighting, which lets the effect of the weighting be isolated from any other implementation detail. Every claim below is evaluated under the same protocol, and negative results are reported alongside positive ones because the failure cases are the part that transfers to other scenes. We deliberately keep the evaluation narrow: a single protocol applied to every model, with the same number of iterations and the same resolution, so that a difference in the table reflects the method and not the tuning budget. Where a baseline is known to be sensitive to one of these choices we report both settings and mark which one we treat as primary.II. Experiments
+We set learning rate = 1e-3 and batch size = 2.
+Table II
+Accuracy in percent.
+Method A 71.4 % 69.8 %

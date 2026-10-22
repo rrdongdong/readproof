@@ -46,11 +46,14 @@ readproof: refusing FETCHED -> READ_FULL: missing reading-receipt fingerprints:
   number_with_locator, hyperparameters, negative_quote, body_detail
 $ echo $?
 6
-$ readproof receipt 07 \
-    --number   "Table II: 41.2 / 38.7 dB (p.5)" \
-    --hyper    "lr=2e-4, iters=20k (sec IV-A, p.4)" \
-    --negative "we do not report motion blur (sec V-D, p.7)" \
-    --body     "cosine schedule only in a p.3 footnote"
+$ readproof receipt 07 --from-text paper.txt     # find the four fingerprints for me
+verdict : full
+  pages : 7
+  chars : 13869
+  [v] number_with_locator  Table II: 41.2 dB / 38.7 dB / 36.4 dB (p.5)
+  [v] hyperparameters      lr=1e-4, batch=4, iters=30000 (sec Experiments, p.5)
+  [v] negative_quote       We do not evaluate on real underwater sequences ... (sec Limitations, p.6)
+  [v] body_detail          We implement the residual weighting as a small module ... (sec Implementation, p.4)
 receipt stored for 07 (4 fingerprints)
 $ readproof advance 07 READ_FULL
 07 -> READ_FULL
@@ -63,6 +66,14 @@ $ readproof status 07
     2026-10-22T13:37:50+00:00  UNREAD -> FETCHED (pipeline)
     2026-10-22T13:38:53+00:00  FETCHED -> READ_FULL (pipeline)
 ```
+
+`paper.txt` is text with form-feed page breaks — what `pdftotext`, most extractors and
+[`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) emit. `readproof` does not parse PDFs itself; a stdlib
+PDF parser fails exactly where CVF/IEEE files are hardest (subsetted CID fonts, pages inside `/ObjStm`),
+and garbage text is worse than an honest failure.
+
+You can also pass the four fingerprints by hand (`--number/--hyper/--negative/--body`) or from JSON
+(`--file`). `readproof extract paper.txt` shows what would be found without storing anything.
 
 `python -m readproof …` behaves identically if you would rather not install.
 
@@ -78,7 +89,7 @@ The gates are only real if a caller cannot ignore them, so failure is an exit co
 | `5` | illegal state transition (including manual upload skipping ahead) |
 | `6` | incomplete reading receipt |
 
-Commands: `init`, `add`, `advance`, `receipt`, `check`, `status`, `list`, `demo`. The ledger is a plain
+Commands: `init`, `add`, `advance`, `receipt`, `extract`, `check`, `status`, `list`, `demo`. The ledger is a plain
 JSON file (`--ledger`, or `$READPROOF_LEDGER`); state changes are appended to a per-paper `history`, so
 every jump is auditable after the fact.
 
@@ -174,14 +185,17 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 | State machine + capability gating (`readproof/states.py`) | ✅ implemented, 18 tests |
 | JSON ledger + CLI with gated exit codes (`store.py`, `cli.py`) | ✅ runnable, 24 tests |
 | Reading receipt **validation** | ✅ implemented (rejects abstract-only receipts) |
-| Reading receipt **extraction** from a PDF | designed, not implemented |
+| Reading receipt **extraction** from extracted text (`receipt.py`) | ✅ implemented, 19 tests |
+| PDF → text (delegated to `dsh-pdf`) | out of scope by design |
 | Spot-check challenge | designed, not implemented |
 | Controlled vocabulary + graph build | designed, not implemented |
 | Gap queries G1–G6 | designed, not implemented |
 
-What `readproof` can do today, end to end: keep a deduplicated ledger, refuse to advance a paper past
-`FETCHED` without a complete reading receipt, and fail with a specific exit code when a rule is broken.
-What it cannot do yet: obtain or read the PDF itself, or build the problem graph.
+What `readproof` can do today, end to end: keep a deduplicated ledger; extract the four receipt
+fingerprints from a paper's text and refuse when the text is only an abstract or an excerpt; refuse to
+advance a paper past `FETCHED` without a complete receipt; fail with a specific exit code for each rule
+broken. What it cannot do yet: fetch or extract the PDF itself (delegated to `dsh-pdf`), or build the
+problem graph.
 
 Design rationale: [`docs/design.md`](./docs/design.md).
 

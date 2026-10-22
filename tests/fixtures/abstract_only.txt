@@ -1,0 +1,5 @@
+Dense Reconstruction of Degraded Scenes from Sparse Views
+A. Author, B. Author, C. Author
+
+Abstract
+We present a dense reconstruction method for scenes observed under degraded imaging conditions. The central observation is that the weighting between photometric and geometric residuals should depend on the estimated reliability of each pixel rather than on a global constant. Experiments on three datasets show consistent improvement in the low-visibility regime while leaving the clean regime essentially unchanged.

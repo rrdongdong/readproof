@@ -11,6 +11,7 @@ import json
 import os
 import sys
 
+from . import receipt as receipt_mod
 from . import states
 from .store import (
     DEFAULT_FILENAME,
@@ -80,6 +81,16 @@ def build_parser():
     rec = sub.add_parser("receipt", help="attach a reading receipt to a paper")
     rec.add_argument("paper_id")
     rec.add_argument("--file", help="JSON file with the four fingerprints")
+    rec.add_argument(
+        "--from-text",
+        metavar="TXT",
+        help="extracted paper text (form-feed page breaks); fingerprints are found for you",
+    )
+    rec.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="accept text that does not look like a full paper (records the verdict)",
+    )
     rec.add_argument("--number", help="number_with_locator: value + table + page")
     rec.add_argument("--hyper", help="hyperparameters: values + section")
     rec.add_argument("--negative", help="negative_quote: a verbatim limitation")
@@ -87,6 +98,16 @@ def build_parser():
 
     chk = sub.add_parser("check", help="validate a receipt JSON without touching the ledger")
     chk.add_argument("--file", required=True)
+
+    ext = sub.add_parser(
+        "extract", help="show what a receipt would contain, without storing it"
+    )
+    ext.add_argument("text_file")
+    ext.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="do not refuse text that looks abstract-only or partial",
+    )
 
     sta = sub.add_parser("status", help="show one paper")
     sta.add_argument("paper_id")
@@ -176,6 +197,13 @@ def cmd_advance(args):
 
 
 def _receipt_payload(args):
+    if getattr(args, "from_text", None):
+        with open(args.from_text, encoding="utf-8") as handle:
+            text = handle.read()
+        payload, assessment = receipt_mod.extract_receipt(
+            text, require_full=not getattr(args, "allow_partial", False)
+        )
+        return payload
     if args.file:
         with open(args.file, encoding="utf-8") as handle:
             return json.load(handle)
@@ -218,6 +246,41 @@ def cmd_check(args):
             mark = "x" if field in missing else "v"
             print("  [%s] %s" % (mark, field))
     return 0 if payload["complete"] else 6
+
+
+def cmd_extract(args):
+    with open(args.text_file, encoding="utf-8") as handle:
+        text = handle.read()
+    assessment = receipt_mod.assess(text)
+    payload = {"assessment": assessment, "receipt": None, "missing": []}
+    try:
+        found, _ = receipt_mod.extract_receipt(
+            text, require_full=not args.allow_partial
+        )
+        payload["receipt"] = found
+    except receipt_mod.ReceiptExtractionError as exc:
+        payload["missing"] = exc.missing
+        if args.json:
+            emit(payload, True)
+        else:
+            print("verdict : %s" % assessment["verdict"])
+            print("  pages : %d" % assessment["pages"])
+            print("  chars : %d" % assessment["chars"])
+            for reason in assessment["reasons"]:
+                print("  why   : %s" % reason)
+            print("missing : %s" % ", ".join(exc.missing))
+            print("\nnot a full paper -> this text cannot produce a receipt")
+        return exc.exit_code
+
+    if args.json:
+        emit(payload, True)
+        return 0
+    print("verdict : %s" % assessment["verdict"])
+    print("  pages : %d" % assessment["pages"])
+    print("  chars : %d" % assessment["chars"])
+    for field in states.RECEIPT_FIELDS:
+        print("  [v] %-20s %s" % (field, payload["receipt"][field]))
+    return 0
 
 
 def cmd_status(args):
@@ -281,6 +344,7 @@ COMMANDS = {
     "add": cmd_add,
     "advance": cmd_advance,
     "receipt": cmd_receipt,
+    "extract": cmd_extract,
     "check": cmd_check,
     "status": cmd_status,
     "list": cmd_list,
@@ -296,7 +360,7 @@ def main(argv=None):
     handler = COMMANDS[args.command]
     try:
         return handler(args)
-    except (LedgerError, states.IllegalTransition) as exc:
+    except (LedgerError, states.IllegalTransition, receipt_mod.ReceiptExtractionError) as exc:
         code = getattr(exc, "exit_code", 1)
         print("readproof: %s" % exc, file=sys.stderr)
         return code
