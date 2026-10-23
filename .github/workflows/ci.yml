@@ -317,7 +317,26 @@ jobs:
           curl -sf http://127.0.0.1:8011/api/papers | grep -q '"count": 1'
           curl -sf http://127.0.0.1:8011/api/gaps | grep -q '"available": true'
           curl -sf http://127.0.0.1:8011/ | grep -q '<div id="root">'
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8011/assets/missing.js)" = "200"
+
+          # A module script served as text/plain is refused by the browser and the page
+          # goes blank while the stylesheet still applies. Assert the real header.
+          asset=$(grep -o 'src="\./[^"]*\.js"' web/dist/index.html | sed 's/src="\.\///;s/"$//')
+          test -n "$asset"
+          content_type=$(curl -s -o /dev/null -w '%{content_type}' "http://127.0.0.1:8011/$asset")
+          case "$content_type" in
+            *javascript*) ;;
+            *) echo "js asset served as '$content_type'"; exit 1 ;;
+          esac
+          style=$(grep -o 'href="\./[^"]*\.css"' web/dist/index.html | sed 's/href="\.\///;s/"$//')
+          case "$(curl -s -o /dev/null -w '%{content_type}' "http://127.0.0.1:8011/$style")" in
+            *css*) ;;
+            *) echo "css asset has a wrong content type"; exit 1 ;;
+          esac
+
+          # a missing asset must be 404, never the HTML fallback
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8011/assets/missing.js)" = "404"
+          # an extensionless route still serves the app
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8011/paper/07)" = "200"
           echo "web: api + built app served"
 
   windows:

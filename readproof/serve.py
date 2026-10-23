@@ -23,6 +23,35 @@ from . import states
 from . import vocab as vocab_mod
 from .store import Ledger
 
+#: Explicit content types. Do not ask ``mimetypes``: on Windows it reads the registry,
+#: and ``HKEY_CLASSES_ROOT\.js`` commonly maps to ``text/plain``. A module script served
+#: as text/plain is refused by the browser ("Expected a JavaScript module script"), which
+#: shows up as a blank page with the stylesheet applied — the exact symptom this table
+#: exists to prevent.
+CONTENT_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".ico": "image/x-icon",
+    ".webp": "image/webp",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".txt": "text/plain; charset=utf-8",
+}
+
+#: Requests with one of these extensions are assets, never client-side routes, so a
+#: missing one is a 404 and not the SPA fallback.
+ASSET_EXTENSIONS = frozenset(CONTENT_TYPES) - {".html"}
+
 DEFAULT_PORT = 8000
 DEFAULT_WEB_DIR = os.path.join("web", "dist")
 
@@ -232,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # Make a wrong type a loud failure in the console instead of a silent one.
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(body)
 
@@ -272,14 +303,28 @@ class Handler(BaseHTTPRequestHandler):
         if not candidate.startswith(root):  # no path traversal
             self._send_json(403, {"error": "forbidden"})
             return
+        extension = os.path.splitext(relative)[1].lower()
         if not os.path.isfile(candidate):
-            candidate = os.path.join(root, "index.html")  # SPA fallback
+            if extension in ASSET_EXTENSIONS:
+                # Answering the SPA fallback here would hand the browser HTML for a
+                # missing script, and the browser reports a MIME error with no clue
+                # that the file is absent. A 404 is the honest answer.
+                self._send_json(
+                    404,
+                    {
+                        "error": "asset not found: %s" % path,
+                        "hint": "rebuild the frontend: cd web && npm run build",
+                    },
+                )
+                return
+            candidate = os.path.join(root, "index.html")  # SPA fallback for routes
             if not os.path.isfile(candidate):
                 self._send_json(404, {"error": "not found: %s" % path})
                 return
-        content_type = mimetypes.guess_type(candidate)[0] or "application/octet-stream"
-        if content_type.startswith("text/") or content_type == "application/javascript":
-            content_type += "; charset=utf-8"
+        content_type = CONTENT_TYPES.get(
+            os.path.splitext(candidate)[1].lower(),
+            mimetypes.guess_type(candidate)[0] or "application/octet-stream",
+        )
         with open(candidate, "rb") as handle:
             body = handle.read()
         self._send(200, body, content_type)

@@ -150,15 +150,69 @@ class HttpTests(Base):
         self.assertIn("text/html", content_type)
         self.assertIn(b"readproof", body)
 
-    def test_unknown_path_falls_back_to_index(self):
+    def test_unknown_route_falls_back_to_index(self):
         status, _, body = self.fetch("/some/spa/route")
         self.assertEqual(status, 200)
         self.assertIn(b"readproof", body)
+
+    def test_index_explains_itself_when_the_bundle_never_runs(self):
+        with open(os.path.join(self.web, "index.html"), "w", encoding="utf-8") as handle:
+            handle.write("<html><body><div id=\"root\">前端脚本没有执行</div></body></html>")
+        _, _, body = self.fetch("/")
+        self.assertIn("前端脚本没有执行".encode("utf-8"), body)
 
     def test_asset_is_served_with_javascript_type(self):
         status, content_type, _ = self.fetch("/assets/app.js")
         self.assertEqual(status, 200)
         self.assertIn("javascript", content_type)
+        self.assertIn("charset=utf-8", content_type)
+
+    def test_wrong_mimetypes_cannot_break_the_bundle(self):
+        """Windows maps .js to text/plain in the registry; a module served that way is
+        refused by the browser and the page goes blank with the CSS still applied."""
+        import mimetypes
+
+        original = mimetypes.guess_type
+        mimetypes.guess_type = lambda *a, **k: ("text/plain", None)
+        try:
+            status, content_type, _ = self.fetch("/assets/app.js")
+        finally:
+            mimetypes.guess_type = original
+        self.assertEqual(status, 200)
+        self.assertIn("javascript", content_type)
+
+    def test_missing_asset_is_404_not_html(self):
+        """The SPA fallback must not answer an asset request: HTML for a missing script
+        makes the browser report a MIME error with no hint that the file is gone."""
+        try:
+            with urllib.request.urlopen(self.base + "/assets/missing.js", timeout=5) as response:
+                status, body = response.status, response.read()
+        except urllib.error.HTTPError as exc:
+            status, body = exc.code, exc.read()
+        self.assertEqual(status, 404)
+        self.assertIn(b"asset not found", body)
+        self.assertNotIn(b"<div id=\"root\">", body)
+
+    def test_missing_css_is_404_too(self):
+        try:
+            with urllib.request.urlopen(self.base + "/assets/missing.css", timeout=5) as response:
+                status = response.status
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+        self.assertEqual(status, 404)
+
+    def test_extensionless_route_still_falls_back(self):
+        status, content_type, body = self.fetch("/paper/07")
+        self.assertEqual(status, 200)
+        self.assertIn("text/html", content_type)
+        self.assertIn(b"readproof", body)
+
+    def test_nosniff_header_is_sent(self):
+        import urllib.request as u
+
+        request = u.Request(self.base + "/api/health")
+        with u.urlopen(request, timeout=5) as response:
+            self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
 
     def test_path_traversal_is_refused(self):
         request = urllib.request.Request(self.base + "/../ledger.json")

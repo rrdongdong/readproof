@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.6.5 — unreleased
+
+Blank page with the stylesheet applied — the worst kind of failure, because it looks
+like a broken build and reports nothing.
+
+### Fixed
+- **Content types no longer come from `mimetypes`.** On Windows, `mimetypes` reads the
+  registry, and `HKEY_CLASSES_ROOT\.js` commonly maps to `text/plain`. A module script
+  served as text/plain is refused by the browser, and because the stylesheet (`text/css`)
+  still loads, the result is a dark page with nothing on it. `serve` now uses an explicit
+  extension table, and sends `X-Content-Type-Options: nosniff` so a wrong type is a loud
+  console error instead of a silent one.
+- **A missing asset is now a 404, not the SPA fallback.** Answering a missing `.js` with
+  `index.html` produced "Expected a JavaScript module script but the server responded
+  with a MIME type of text/html" — an error message that never mentions the missing file.
+  Extensionless paths still fall back to the app.
+
+### Added
+- `index.html` carries a static explanation that disappears once React mounts, plus
+  `window.onerror` / `unhandledrejection` reporting — a blank page can now say why
+- a React error boundary, so a render crash shows the exception instead of nothing
+- 6 tests: wrong-`mimetypes` regression, asset 404 for `.js` and `.css`, extensionless
+  route still served, `nosniff` header, boot explanation present
+- CI asserts the served content type of the real built bundle, and that a missing asset
+  is 404 while `/paper/07` is 200
+
+### Note
+Reported by the user as "上面是黑屏的呀，什么都没有" — with the API working and the demo
+output printing correctly, which is exactly what made a silent MIME failure the prime
+suspect.
+
 ## 0.6.4 — unreleased
 
 The demo ledger no longer turns `git pull` into a conflict.

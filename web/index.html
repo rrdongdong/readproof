@@ -6,7 +6,29 @@
     <title>readproof · 读证</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Replaced by React. If this text survives, the bundle never executed. -->
+      <div style="font: 14px/1.6 system-ui, sans-serif; color: #e6edf3; background: #0d1117; padding: 32px">
+        <p><strong>前端脚本没有执行。</strong></p>
+        <p>常见原因：<code>web/dist</code> 没有构建，或构建产物与 API 版本不一致。</p>
+        <p>修复：<code>cd web &amp;&amp; npm install &amp;&amp; npm run build</code>，然后刷新。</p>
+        <p id="boot-error"></p>
+      </div>
+    </div>
+    <script>
+      // Surface load/parse errors that otherwise leave an empty page.
+      window.addEventListener('error', function (event) {
+        var target = document.getElementById('boot-error');
+        if (target && event && event.message) {
+          target.textContent = '加载错误：' + event.message +
+            (event.filename ? ' (' + event.filename + ':' + event.lineno + ')' : '');
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        var target = document.getElementById('boot-error');
+        if (target) target.textContent = '未处理的错误：' + (event.reason && event.reason.message || event.reason);
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
