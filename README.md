@@ -108,9 +108,10 @@ The gates are only real if a caller cannot ignore them, so failure is an exit co
 | `7` | no PDF text extractor available |
 | `8` | PDF failed integrity checks (truncated / not a PDF) |
 | `9` | manual upload does not match the ledger title |
+| `10` | built frontend missing (run `npm run build` in `web/`) |
 | `4` | graph/vocabulary unhealthy (fragmented, unresolved triage, edge without evidence) |
 
-Commands: `init`, `add`, `advance`, `receipt`, `extract`, `intake`, `vocab`, `card`, `graph`, `check`, `status`, `list`, `demo`. The ledger is a plain
+Commands: `init`, `add`, `advance`, `receipt`, `extract`, `intake`, `vocab`, `card`, `graph`, `serve`, `check`, `status`, `list`, `demo`. The ledger is a plain
 JSON file (`--ledger`, or `$READPROOF_LEDGER`); state changes are appended to a per-paper `history`, so
 every jump is auditable after the fact.
 
@@ -235,6 +236,39 @@ Output is `out/gap-table.md` plus `out/graph.json`. The table gives statements, 
 `solved/unsolved` counts — **not "innovation ideas"**. A generated idea is empty without knowing your
 hardware, data and advisor, and presenting one as your own is an integrity problem rather than a
 feature. Each table ends with five questions for the human instead.
+
+## Web interface
+
+A read-only view over the ledger, the receipts and the gaps. The API is `http.server` from the
+standard library; the frontend is Vite + React.
+
+```console
+$ cd web && npm install && npm run build && cd ..
+$ readproof --ledger ledger.json serve --port 8000 --vocab vocab.tsv --web-dir web/dist
+serving /path/ledger.json on http://127.0.0.1:8000  (web dir: web/dist)
+```
+
+Four views: **papers** (state badges and receipt dots, so you can see at a glance which paper is
+stuck without a receipt), **paper detail** (the four fingerprints with their page numbers, the
+problem card, the full state history), **gaps** (G1–G6 with their evidence, and the triage pool),
+and **state machine** (the permission table and the exit codes).
+
+```
+GET /api/papers        GET /api/papers/{id}      GET /api/gaps
+GET /api/meta          GET /api/health
+```
+
+**It does not write.** Every state change still goes through the CLI, where each gate has an exit
+code and is tested without a socket. The UI reads; the CLI decides.
+
+### Why not FastAPI
+
+Two reasons, and both are load-bearing: the machine this has to run on has no `pip`, and adding a
+web framework would break the property that makes the engine testable — no third-party
+dependencies at all. The routing is a dozen lines; a framework would not earn its keep.
+
+The frontend is a real build chain because that is where a build actually helps: the bundle is
+checked in CI to make **no remote requests**, so the interface works offline while presenting.
 
 ### Health, not vibes
 

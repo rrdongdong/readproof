@@ -14,6 +14,7 @@ import sys
 from . import graph as graph_mod
 from . import pdf as pdf_mod
 from . import receipt as receipt_mod
+from . import serve as serve_mod
 from . import sources as sources_mod
 from . import states
 from . import vocab as vocab_mod
@@ -36,6 +37,7 @@ exit codes
   8   PDF failed integrity checks (truncated / not a PDF)
   9   manual upload does not match the ledger title
   4   the graph or vocabulary is unhealthy (fragmented, or an edge without evidence)
+  10  the built frontend directory is missing
 
 examples
   readproof init
@@ -47,6 +49,7 @@ examples
   readproof vocab
   readproof card 07 --solves P-SCALE-01@sec III-A --leaves-open P-THEORY-01@sec V-D
   readproof graph build -o ./out
+  readproof serve --port 8000 --vocab vocab.tsv
   readproof receipt 08 --number "Table II: 41.2 dB (p.5)" \\
       --hyper "lr=2e-4 (sec IV-A, p.4)" \\
       --negative "we do not report motion blur (sec V-D, p.7)" \\
@@ -191,6 +194,16 @@ def build_parser():
     grf.add_argument(
         "--lenient", action="store_true",
         help="do not fail the health check on threshold breaches",
+    )
+
+    srv = sub.add_parser("serve", help="serve the read-only API and the built frontend")
+    srv.add_argument("--host", default="127.0.0.1")
+    srv.add_argument("--port", type=int, default=serve_mod.DEFAULT_PORT)
+    srv.add_argument("--vocab", default=os.environ.get("READPROOF_VOCAB", "vocab.tsv"))
+    srv.add_argument(
+        "--web-dir",
+        default=serve_mod.DEFAULT_WEB_DIR,
+        help="built frontend directory (default: web/dist)",
     )
 
     sta = sub.add_parser("status", help="show one paper")
@@ -637,6 +650,34 @@ def cmd_graph(args):
     return 0
 
 
+def cmd_serve(args):
+    try:
+        httpd = serve_mod.serve(
+            ledger_path=args.ledger,
+            vocab_path=args.vocab,
+            web_dir=args.web_dir,
+            host=args.host,
+            port=args.port,
+        )
+    except serve_mod.ServeError as exc:
+        raise exc
+    except OSError as exc:
+        raise LedgerError("cannot listen on %s:%d (%s)" % (args.host, args.port, exc))
+
+    print(
+        "serving %s on http://%s:%d  (web dir: %s)"
+        % (os.path.abspath(args.ledger), args.host, httpd.server_address[1], args.web_dir or "-")
+    )
+    print("press Ctrl-C to stop")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped")
+    finally:
+        httpd.server_close()
+    return 0
+
+
 def cmd_status(args):
     ledger = Ledger.open(args.ledger)
     paper = ledger.require(args.paper_id)
@@ -704,6 +745,7 @@ COMMANDS = {
     "graph": cmd_graph,
     "intake": cmd_intake,
     "check": cmd_check,
+    "serve": cmd_serve,
     "status": cmd_status,
     "list": cmd_list,
 }
@@ -727,6 +769,7 @@ def main(argv=None):
         sources_mod.ExtractionFailed,
         vocab_mod.VocabError,
         graph_mod.GraphError,
+        serve_mod.ServeError,
     ) as exc:
         code = getattr(exc, "exit_code", 1)
         print("readproof: %s" % exc, file=sys.stderr)

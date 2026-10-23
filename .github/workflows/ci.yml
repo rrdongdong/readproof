@@ -187,9 +187,9 @@ jobs:
           import ast, pathlib
 
           allowed = {
-              "__future__", "argparse", "difflib", "hashlib", "json", "os", "re", "shlex",
-              "shutil", "subprocess", "sys", "tempfile", "datetime", "pathlib",
-              "unittest", "urllib", "readproof",
+              "__future__", "argparse", "difflib", "hashlib", "json", "mimetypes", "os",
+              "posixpath", "re", "shlex", "shutil", "subprocess", "sys", "tempfile",
+              "datetime", "pathlib", "unittest", "urllib", "http", "readproof",
           }
           bad = []
           for path in pathlib.Path("readproof").rglob("*.py"):
@@ -208,3 +208,69 @@ jobs:
               raise SystemExit("unexpected imports:\n" + "\n".join(bad))
           print("stdlib only: ok")
           PY
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          CI: "true"
+
+      - name: Built bundle has no remote requests
+        run: |
+          if grep -rIl --include='*.js' --include='*.css' -E 'https?://(fonts|cdn|unpkg|jsdelivr)' dist/; then
+            echo "the bundle references a remote host; the UI must work offline"
+            exit 1
+          fi
+          echo "dist is self-contained"
+
+      - name: Server serves the API and the built app
+        working-directory: .
+        run: |
+          set -euo pipefail
+          python -m pip install -e . > /dev/null
+          cd tests/fixtures
+          python - <<'PY'
+          from readproof.store import Ledger
+          from readproof import states as s
+          ledger = Ledger.open("/tmp/web-ledger.json", create=True)
+          ledger.add("07", "A Full Paper For The Web Check", venue="CVPR 2026")
+          ledger.advance("07", s.FETCHED)
+          ledger.set_receipt("07", {
+              "number_with_locator": "Table II: 41.2 dB (p.5)",
+              "hyperparameters": "lr=1e-4 (sec IV-A, p.4)",
+              "negative_quote": "we do not report motion blur (sec V-D, p.7)",
+              "body_detail": "cosine schedule only in a p.3 footnote",
+          })
+          ledger.advance("07", s.READ_FULL)
+          ledger.save()
+          PY
+          cd "$GITHUB_WORKSPACE"
+          python -m readproof --ledger /tmp/web-ledger.json serve \
+            --port 8011 --vocab vocab.tsv --web-dir web/dist &
+          server=$!
+          trap 'kill $server' EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8011/api/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8011/api/papers | grep -q '"count": 1'
+          curl -sf http://127.0.0.1:8011/api/gaps | grep -q '"available": true'
+          curl -sf http://127.0.0.1:8011/ | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8011/assets/missing.js)" = "200"
+          echo "web: api + built app served"

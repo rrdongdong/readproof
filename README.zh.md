@@ -88,9 +88,10 @@ $ readproof receipt 07 --from-pdf paper.pdf
 | `7` | 机器上没有可用的 PDF 文本抽取器 |
 | `8` | PDF 完整性校验失败（截断 / 不是 PDF） |
 | `9` | 手动上传的文件与台账标题不符 |
+| `10` | 前端未构建（在 `web/` 里跑 `npm run build`） |
 | `4` | 图谱/词表不健康（碎片化、待归类过多、边无证据） |
 
-命令：`init`、`add`、`advance`、`receipt`、`extract`、`intake`、`vocab`、`card`、`graph`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
+命令：`init`、`add`、`advance`、`receipt`、`extract`、`intake`、`vocab`、`card`、`graph`、`serve`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
 （`--ledger` 或 `$READPROOF_LEDGER`）；每次状态变化都进该论文的 `history`，事后可审计。
 
 ## 状态机（治假读）
@@ -198,6 +199,35 @@ $ readproof graph build --vocab vocab.tsv -o out
 产出 `out/gap-table.md` 与 `out/graph.json`。表格给的是问题陈述、证据、以及「有/无解决者」的计数，
 **不产出「创新点」**——不知道你的算力、数据和导师方向，生成出来的想法是空的；把它当自己的成果
 更是诚信问题。所以每张表末尾给的是五个问题，而不是五个点子。
+
+## Web 界面
+
+只读界面：看台账状态、看读证四项原文、看缺口表。API 用标准库 `http.server`，前端是 Vite + React。
+
+```console
+$ cd web && npm install && npm run build && cd ..
+$ readproof --ledger ledger.json serve --port 8000 --vocab vocab.tsv --web-dir web/dist
+serving /path/ledger.json on http://127.0.0.1:8000  (web dir: web/dist)
+```
+
+四个页面：
+
+- **论文** —— 状态徽章 + 读证圆点，一眼看出哪几篇因为缺读证卡住
+- **单篇** —— 四项指纹和它们的页码、问题卡、完整状态历史
+- **缺口** —— G1–G6 及其证据，以及待归类池
+- **状态机** —— 权限表 + 退出码
+
+```
+GET /api/papers   GET /api/papers/{id}   GET /api/gaps   GET /api/meta   GET /api/health
+```
+
+**它不写。** 所有状态变化仍走 CLI——那里每个闸门都有退出码，且不需要开端口就能测。**界面只读，CLI 决定。**
+
+### 为什么不是 FastAPI
+
+两个都是硬理由：这台机器**没有 pip**，框架装不上；而且引入框架会破坏「引擎零第三方依赖、每次提交都能测」这条性质。路由本身只有十几行，框架赚不回它的成本。
+
+前端用真的构建链，因为那才是构建能帮上忙的地方：CI 会检查打包产物**不发任何远程请求**，所以演示时断网也能用。
 
 ### 健康度，而不是感觉
 

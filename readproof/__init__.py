@@ -1,6 +1,6 @@
 """readproof — a research assistant that refuses to pretend it read something."""
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .states import (  # noqa: F401
     ARTEFACTS,

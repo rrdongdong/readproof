@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.6.0 — unreleased
+
+A web interface: the discipline becomes visible instead of requiring `cat ledger.json`.
+
+### Added
+- `readproof/serve.py` — read-only API on the standard library's `http.server`
+  - `GET /api/papers`, `/api/papers/{id}`, `/api/gaps`, `/api/meta`, `/api/health`
+  - payloads carry what the gate actually permits: `receipt.present/missing` per field and
+    `may_write` per state, so the UI can show "this paper cannot become READ_FULL" instead of
+    a colour nobody can explain
+  - `/api/gaps` reports `available: false` with a hint when no vocabulary is loaded, rather than
+    an empty table that looks like "no gaps found"
+  - unresolved phrases appear in the UI's triage pool with their similarity suggestions
+  - SPA fallback, path-traversal refusal, `no-store` caching, 503 with build instructions when
+    `web/dist` is missing
+- `web/` — Vite + React frontend (papers / paper detail / gaps / state machine), hash routing,
+  dark theme, evidence grades colour-coded E1 green · E2 blue · E3 amber · E4/E5 grey
+- CLI: `readproof serve --host --port --vocab --web-dir`
+- `tests/test_serve.py` — 16 tests, including a real HTTP round trip, traversal refusal and the
+  missing-frontend hint
+- CI: a second job installs the frontend, builds it, asserts the bundle makes **no remote
+  requests** (the interface has to work offline during a demo), then starts the server and
+  checks the API and the app are served
+
+### Why not FastAPI
+The target machine has no `pip`, and a framework would break the property that makes the engine
+testable: no third-party dependencies. The routing is a dozen lines. The frontend is a real
+build chain because that is where a build earns its keep.
+
+### Also
+- 161 tests total
+- `readproof` stays writable only through the CLI: every gate keeps its exit code and is tested
+  without a socket
+
 ## 0.5.0 — unreleased
 
 The semantic layer: a controlled vocabulary, problem cards, a graph, and six gap queries.
