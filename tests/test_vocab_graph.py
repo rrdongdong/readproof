@@ -6,6 +6,7 @@ import unittest
 
 from readproof import cli
 from readproof import graph as g
+from readproof import states as s
 from readproof import vocab as v
 from readproof.store import Ledger
 
@@ -109,6 +110,9 @@ class GraphBuildTests(unittest.TestCase):
         self.ledger = Ledger.open(self.path, create=True)
         for index in ("01", "02", "03", "04"):
             self.ledger.add(index, "Paper %s on multi-robot mapping" % index)
+            # a card needs text behind it; READ_PARTIAL is reachable without a receipt
+            self.ledger.advance(index, s.FETCHED)
+            self.ledger.advance(index, s.READ_PARTIAL)
         self.ledger.set_card(
             "01",
             {

@@ -249,6 +249,17 @@ class Ledger:
         from . import graph as graph_mod
 
         paper = self.require(paper_id)
+        # A card is a reading artefact: every entry carries a page and an evidence grade,
+        # and neither can exist before some of the text has been read. Recording cards for
+        # unread papers is how a graph fills with confident statements about papers nobody
+        # opened — so this is a gate, not a warning.
+        state = paper.get("state", states.UNREAD)
+        if not states.can_write(state, "abstract_note"):
+            raise LedgerError(
+                "cannot record a problem card for %s in state %s: a card needs at least "
+                "%s (advance the paper once you have its text)"
+                % (paper_id, state, states.READ_PARTIAL)
+            )
         if not isinstance(card, dict):
             raise LedgerError("card must be a JSON object")
         cleaned = {"paper": paper_id}

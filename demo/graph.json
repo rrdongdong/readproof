@@ -1,0 +1,308 @@
+{
+  "nodes": [
+    {
+      "id": "P-SCALE-01",
+      "name": "cost grows faster than accuracy with model size",
+      "kind": "Problem",
+      "aliases": [
+        "diminishing returns",
+        "cost accuracy tradeoff",
+        "scale cost"
+      ],
+      "parent": "P-SCALE",
+      "excludes": [],
+      "referenced": true
+    },
+    {
+      "id": "P-EVAL-01",
+      "name": "no shared protocol for comparing results",
+      "kind": "Problem",
+      "aliases": [
+        "no shared benchmark",
+        "incomparable results",
+        "评测协议缺失"
+      ],
+      "parent": "P-EVAL",
+      "excludes": [],
+      "referenced": true
+    },
+    {
+      "id": "L-ENGINEER-01",
+      "name": "not real time",
+      "kind": "Limitation",
+      "aliases": [
+        "too slow",
+        "non real time",
+        "非实时"
+      ],
+      "parent": "L-ENGINEER",
+      "excludes": [],
+      "referenced": true
+    },
+    {
+      "id": "L-EVAL-01",
+      "name": "evaluation on a single dataset only",
+      "kind": "Limitation",
+      "aliases": [
+        "single dataset",
+        "no cross domain test",
+        "单数据集"
+      ],
+      "parent": "L-EVAL",
+      "excludes": [],
+      "referenced": true
+    },
+    {
+      "id": "A-ASSUME-01",
+      "name": "training labels are noise free",
+      "kind": "Assumption",
+      "aliases": [
+        "clean labels",
+        "noise free labels"
+      ],
+      "parent": "A-ASSUME",
+      "excludes": [
+        "A-ASSUME-02"
+      ],
+      "referenced": true
+    },
+    {
+      "id": "A-ASSUME-02",
+      "name": "training labels contain noise",
+      "kind": "Assumption",
+      "aliases": [
+        "noisy labels",
+        "label noise"
+      ],
+      "parent": "A-ASSUME",
+      "excludes": [
+        "A-ASSUME-01"
+      ],
+      "referenced": true
+    },
+    {
+      "id": "M-SCALE-01",
+      "name": "knowledge distillation",
+      "kind": "Method",
+      "aliases": [
+        "distillation",
+        "KD",
+        "知识蒸馏"
+      ],
+      "parent": "M-SCALE",
+      "excludes": [],
+      "referenced": true
+    }
+  ],
+  "edges": [
+    {
+      "paper": "08",
+      "relation": "leaves_open",
+      "node": "P-EVAL-01",
+      "loc": "sec III"
+    },
+    {
+      "paper": "08",
+      "relation": "assumes",
+      "node": "A-ASSUME-02",
+      "loc": "sec III"
+    },
+    {
+      "paper": "08",
+      "relation": "admits",
+      "node": "L-ENGINEER-01",
+      "loc": "sec IV"
+    },
+    {
+      "paper": "08",
+      "relation": "admits",
+      "node": "L-EVAL-01",
+      "loc": "sec IV"
+    },
+    {
+      "paper": "10",
+      "relation": "leaves_open",
+      "node": "P-EVAL-01",
+      "loc": "sec V"
+    },
+    {
+      "paper": "10",
+      "relation": "admits",
+      "node": "L-EVAL-01",
+      "loc": "sec IV"
+    },
+    {
+      "paper": "07",
+      "relation": "solves",
+      "node": "P-SCALE-01",
+      "loc": "sec III-A"
+    },
+    {
+      "paper": "07",
+      "relation": "leaves_open",
+      "node": "P-EVAL-01",
+      "loc": "sec V-D"
+    },
+    {
+      "paper": "07",
+      "relation": "assumes",
+      "node": "A-ASSUME-01",
+      "loc": "sec III-A"
+    },
+    {
+      "paper": "07",
+      "relation": "admits",
+      "node": "L-ENGINEER-01",
+      "loc": "sec V-C"
+    },
+    {
+      "paper": "07",
+      "relation": "criticizes",
+      "node": "M-SCALE-01",
+      "loc": "sec II-A",
+      "compared": false,
+      "evidence": "E2"
+    },
+    {
+      "paper": "07",
+      "relation": "anomaly",
+      "node": "unlabelled-anomaly",
+      "loc": "sec V Table 4",
+      "note": "accuracy rises while cost falls, unexplained"
+    }
+  ],
+  "triage": [],
+  "findings": [
+    {
+      "kind": "G1",
+      "label": "consensus",
+      "node": "P-EVAL-01",
+      "statement": "no shared protocol for comparing results",
+      "papers": [
+        "08",
+        "10",
+        "07"
+      ],
+      "evidence": [
+        "08 sec III",
+        "10 sec V",
+        "07 sec V-D"
+      ],
+      "meaning": "the field agrees it is unsolved — lowest risk"
+    },
+    {
+      "kind": "G2",
+      "label": "silent",
+      "node": "L-ENGINEER-01",
+      "statement": "not real time",
+      "papers": [
+        "08",
+        "07"
+      ],
+      "evidence": [
+        "08 sec IV",
+        "07 sec V-C"
+      ],
+      "meaning": "known to break, nobody fixes it — best effort/reward"
+    },
+    {
+      "kind": "G2",
+      "label": "silent",
+      "node": "L-EVAL-01",
+      "statement": "evaluation on a single dataset only",
+      "papers": [
+        "08",
+        "10"
+      ],
+      "evidence": [
+        "08 sec IV",
+        "10 sec IV"
+      ],
+      "meaning": "known to break, nobody fixes it — best effort/reward"
+    },
+    {
+      "kind": "G3",
+      "label": "contested",
+      "node": "M-SCALE-01",
+      "statement": "knowledge distillation",
+      "papers": [
+        "07"
+      ],
+      "evidence": [
+        "07 sec II-A (E2)"
+      ],
+      "meaning": "one experiment would settle it — largest headroom"
+    },
+    {
+      "kind": "G4",
+      "label": "assumption",
+      "node": "A-ASSUME-01",
+      "nodes": [
+        "A-ASSUME-01",
+        "A-ASSUME-02"
+      ],
+      "statement": "training labels are noise free  ⟂  training labels contain noise",
+      "papers": [
+        "07",
+        "08"
+      ],
+      "evidence": [
+        "08 assumes A-ASSUME-02",
+        "07 assumes A-ASSUME-01"
+      ],
+      "meaning": "nobody crosses the assumption — good fit for a small project"
+    },
+    {
+      "kind": "G5",
+      "label": "isolated",
+      "node": "P-SCALE-01",
+      "statement": "cost grows faster than accuracy with model size",
+      "papers": [
+        "07"
+      ],
+      "evidence": [
+        "07 sec III-A (solves)"
+      ],
+      "meaning": "may be a non-problem — listed only, needs a human"
+    },
+    {
+      "kind": "G6",
+      "label": "anomaly",
+      "node": "unlabelled-anomaly",
+      "statement": "accuracy rises while cost falls, unexplained",
+      "papers": [
+        "07"
+      ],
+      "evidence": [
+        "07 sec V Table 4"
+      ],
+      "meaning": "mechanism gap — most likely to yield real novelty"
+    }
+  ],
+  "stats": {
+    "papers": 5,
+    "edges": 12,
+    "nodes_referenced": 7,
+    "nodes_in_vocabulary": 7,
+    "triage": 0,
+    "triage_ratio": 0.0,
+    "orphans": [
+      "A-ASSUME-01",
+      "A-ASSUME-02",
+      "M-SCALE-01",
+      "P-SCALE-01"
+    ],
+    "orphan_ratio": 0.5714,
+    "components": 1,
+    "edges_without_loc": 0,
+    "anomalies": 1,
+    "mean_aliases": 2.714,
+    "category_blanks": [
+      "ROBUST",
+      "ASSUME",
+      "THEORY",
+      "ENGINEER"
+    ],
+    "health_applies": false
+  }
+}

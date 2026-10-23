@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "papers": [
+    {
+      "id": "07",
+      "title": "[synthetic] Dense Reconstruction of Degraded Scenes",
+      "venue": "CVPR 2026 (fixture)",
+      "arxiv": "",
+      "doi": "",
+      "state": "VERIFIED",
+      "source": "manual_upload",
+      "receipt": {
+        "number_with_locator": "Table II: 41.2 dB / 38.7 dB / 36.4 dB (p.5)",
+        "hyperparameters": "lr=1e-4, batch=4, iters=30000 (sec Experiments, p.5)",
+        "negative_quote": "We do not evaluate on real underwater sequences, so the claim that the weighting transfers to physical degradation remains untested. (sec Limitations, p.6)",
+        "body_detail": "We implement the residual weighting as a small module inserted between the rasteriser and the loss. (sec Implementation, p.4)",
+        "extra": {
+          "extractor": "readproof-text-v1",
+          "verdict": "full",
+          "pages": 7,
+          "chars": 13869
+        }
+      },
+      "history": [
+        {
+          "at": "2026-10-23T01:25:36+00:00",
+          "from": null,
+          "to": "UNREAD",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:36+00:00",
+          "from": "UNREAD",
+          "to": "FETCHED",
+          "via": "manual_upload"
+        },
+        {
+          "at": "2026-10-23T01:25:36+00:00",
+          "from": "FETCHED",
+          "to": "READ_FULL",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:36+00:00",
+          "from": "READ_FULL",
+          "to": "VERIFIED",
+          "via": "pipeline"
+        }
+      ],
+      "intake": {
+        "source": "/home/ubuntu/.dsh/publish/readproof/tests/fixtures/valid.pdf",
+        "bytes": 451,
+        "sha256": "4b6851c9c4ad1dcc54a74558111ffeb7107cef9f4ffff7529bd90bd891cd9176",
+        "page_objects": 1,
+        "identity": {
+          "checked": false,
+          "ok": null,
+          "detail": "no extractor available"
+        },
+        "accepted_mismatch": false
+      },
+      "has_card": true
+    },
+    {
+      "id": "08",
+      "title": "[synthetic] Short Excerpt Without A Receipt",
+      "venue": "",
+      "arxiv": "",
+      "doi": "",
+      "state": "READ_PARTIAL",
+      "source": "pipeline",
+      "receipt": null,
+      "history": [
+        {
+          "at": "2026-10-23T01:25:36+00:00",
+          "from": null,
+          "to": "UNREAD",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:36+00:00",
+          "from": "UNREAD",
+          "to": "FETCHED",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": "FETCHED",
+          "to": "READ_PARTIAL",
+          "via": "pipeline"
+        }
+      ],
+      "has_card": true
+    },
+    {
+      "id": "09",
+      "title": "[synthetic] Paywalled Paper Waiting For Upload",
+      "venue": "",
+      "arxiv": "",
+      "doi": "",
+      "state": "FETCH_FAILED",
+      "source": "pipeline",
+      "receipt": null,
+      "history": [
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": null,
+          "to": "UNREAD",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": "UNREAD",
+          "to": "FETCH_FAILED",
+          "via": "pipeline"
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "[synthetic] Second Excerpt, Same Open Question",
+      "venue": "",
+      "arxiv": "",
+      "doi": "",
+      "state": "READ_PARTIAL",
+      "source": "pipeline",
+      "receipt": null,
+      "history": [
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": null,
+          "to": "UNREAD",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": "UNREAD",
+          "to": "FETCHED",
+          "via": "pipeline"
+        },
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": "FETCHED",
+          "to": "READ_PARTIAL",
+          "via": "pipeline"
+        }
+      ],
+      "has_card": true
+    },
+    {
+      "id": "11",
+      "title": "[synthetic] Not Read Yet",
+      "venue": "",
+      "arxiv": "",
+      "doi": "",
+      "state": "UNREAD",
+      "source": "pipeline",
+      "receipt": null,
+      "history": [
+        {
+          "at": "2026-10-23T01:25:37+00:00",
+          "from": null,
+          "to": "UNREAD",
+          "via": "pipeline"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "paper": "08",
+      "leaves_open": [
+        {
+          "node": "P-EVAL-01",
+          "loc": "sec III"
+        }
+      ],
+      "assumes": [
+        {
+          "node": "A-ASSUME-02",
+          "loc": "sec III"
+        }
+      ],
+      "admits": [
+        {
+          "node": "L-ENGINEER-01",
+          "loc": "sec IV"
+        },
+        {
+          "node": "L-EVAL-01",
+          "loc": "sec IV"
+        }
+      ]
+    },
+    {
+      "paper": "10",
+      "leaves_open": [
+        {
+          "node": "P-EVAL-01",
+          "loc": "sec V"
+        }
+      ],
+      "admits": [
+        {
+          "node": "L-EVAL-01",
+          "loc": "sec IV"
+        }
+      ]
+    },
+    {
+      "paper": "07",
+      "solves": [
+        {
+          "node": "P-SCALE-01",
+          "loc": "sec III-A"
+        }
+      ],
+      "leaves_open": [
+        {
+          "node": "P-EVAL-01",
+          "loc": "sec V-D"
+        }
+      ],
+      "assumes": [
+        {
+          "node": "A-ASSUME-01",
+          "loc": "sec III-A"
+        }
+      ],
+      "admits": [
+        {
+          "node": "L-ENGINEER-01",
+          "loc": "sec V-C"
+        }
+      ],
+      "criticizes": [
+        {
+          "node": "M-SCALE-01",
+          "loc": "sec II-A",
+          "compared": false,
+          "evidence": "E2"
+        }
+      ],
+      "anomaly": [
+        {
+          "loc": "sec V Table 4",
+          "note": "accuracy rises while cost falls, unexplained"
+        }
+      ]
+    }
+  ]
+}

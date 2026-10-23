@@ -181,6 +181,31 @@ jobs:
 
           echo "problem graph: ok"
 
+      - name: Demo ledger builds and covers every gap query
+        run: |
+          set -euo pipefail
+          python demo/build_demo.py > /tmp/demo.log
+          test -s demo/ledger.json
+          test -s demo/gap-table.md
+          test -s demo/graph.json
+          for kind in G1 G2 G3 G4 G5 G6; do
+            grep -q "\[$kind " demo/gap-table.md || { echo "demo does not show $kind"; exit 1; }
+          done
+          python - <<'PY'
+          import json
+          ledger = json.load(open("demo/ledger.json", encoding="utf-8"))
+          states = sorted({paper["state"] for paper in ledger["papers"]})
+          print("demo states:", states)
+          assert len(ledger["papers"]) == 5
+          assert "VERIFIED" in states and "FETCH_FAILED" in states and "UNREAD" in states
+          # every card belongs to a paper with text behind it
+          readable = {p["id"] for p in ledger["papers"]
+                      if p["state"] in ("READ_PARTIAL", "READ_FULL", "VERIFIED")}
+          for card in ledger["cards"]:
+              assert card["paper"] in readable, card["paper"]
+          print("cards only on readable papers: ok")
+          PY
+
       - name: No third-party imports
         run: |
           python - <<'PY'

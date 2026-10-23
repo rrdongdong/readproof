@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.1 — unreleased
+
+A committed demo, and a gate the demo made obvious.
+
+### Added
+- `demo/` — a five-paper synthetic ledger, a seven-term vocabulary, and the outputs they
+  produce (`ledger.json`, `gap-table.md`, `graph.json`), committed so a fresh clone can start
+  the UI without running anything first
+  - covers four states and **one instance of every gap query**, G1 through G6
+  - `demo/build_demo.py` regenerates everything; `--serve` builds then serves
+  - entirely synthetic, with `[synthetic]` titles: a public repository should not publish
+    anybody's reading list or research direction
+- `Makefile` — `make test`, `make web`, `make demo`, `make serve-demo`, `make clean`
+- CI: the demo must build, produce all six gap kinds, and keep every card on a readable paper
+
+### Fixed
+- **A problem card could be recorded for an unread paper.** Cards are reading artefacts —
+  every entry carries a page and an evidence grade, and neither can exist before some of the
+  text has been read. `set_card()` now requires at least `READ_PARTIAL` and says why. The
+  test suite and the demo both had to advance papers before recording cards, which is the
+  proof the gate bites.
+
 ## 0.6.0 — unreleased
 
 A web interface: the discipline becomes visible instead of requiring `cat ledger.json`.

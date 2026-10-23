@@ -18,6 +18,18 @@
 
 这个仓库的大部分内容，就是为了让这两件事发生不了。
 
+## 不用读论文，先看效果
+
+```console
+$ python demo/build_demo.py --serve
+serving http://127.0.0.1:8010  (Ctrl-C to stop)
+```
+
+一个五篇论文的合成台账，覆盖 `VERIFIED` / `READ_PARTIAL` / `FETCH_FAILED` / `UNREAD` 四种状态，
+七个词的词表，六类缺口各出一条。需要先有 `web/dist`：`make web`，或者 `make serve-demo` 一步到位。
+
+`demo/` 里全部是合成数据，这是刻意的——把编造的论文混进真实阅读台账，正是这个项目要防的事。
+
 ## 快速开始
 
 零依赖 —— Python 3.9+ 和标准库就够。
@@ -256,6 +268,7 @@ GET /api/papers   GET /api/papers/{id}   GET /api/gaps   GET /api/meta   GET /ap
 | PDF 完整性 + 身份核对（`pdf.py`） | ✅ 已实现 |
 | PDF → 文本（委托给已安装的抽取器，`sources.py`） | ✅ 已实现，23 个测试 |
 | 随机抽查 | 设计完成，未实现 |
+| demo 台账 + 构建脚本（`demo/`） | ✅ 一条命令，覆盖全部六类缺口 |
 | 受控词表（`vocab.py`） | ✅ 已实现，9 条校验规则 |
 | 问题卡 + 建图 + 健康度（`graph.py`） | ✅ 已实现 |
 | 缺口查询 G1–G6 | ✅ 已实现 |

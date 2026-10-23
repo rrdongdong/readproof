@@ -28,6 +28,19 @@ that contradicts both. Free-text notes cannot hold seams. That failure is **grap
 
 Most of this repo exists to make those two failures impossible.
 
+## See it without reading anything
+
+```console
+$ python demo/build_demo.py --serve
+serving http://127.0.0.1:8010  (Ctrl-C to stop)
+```
+
+A five-paper synthetic ledger covering `VERIFIED` / `READ_PARTIAL` / `FETCH_FAILED` / `UNREAD`, a
+seven-term vocabulary, and one instance of each of the six gap queries. It needs `web/dist` to
+exist: `make web` first, or `make serve-demo` to do both. Everything in `demo/` is synthetic on
+purpose — a demo that mixes invented papers into a real reading ledger is the exact failure this
+project exists to prevent.
+
 ## Quickstart
 
 No dependencies — Python 3.9+ and the standard library only.
@@ -299,6 +312,7 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 | PDF integrity + identity checks (`pdf.py`) | ✅ implemented |
 | PDF → text, delegated to an installed extractor (`sources.py`) | ✅ implemented, 23 tests |
 | Spot-check challenge | designed, not implemented |
+| Demo ledger + build script (`demo/`) | ✅ one command, covers all six gap queries |
 | Controlled vocabulary (`vocab.py`) | ✅ implemented, 9 validation rules |
 | Problem cards + graph build + health (`graph.py`) | ✅ implemented |
 | Gap queries G1–G6 | ✅ implemented |

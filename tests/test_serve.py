@@ -21,6 +21,9 @@ class Base(unittest.TestCase):
         self.ledger = Ledger.open(self.ledger_path, create=True)
         self.ledger.add("01", "First paper about mapping", venue="CVPR 2026")
         self.ledger.add("02", "Second paper about mapping")
+        # a card needs text behind it: FETCHED -> READ_PARTIAL is legal without a receipt
+        self.ledger.advance("01", s.FETCHED)
+        self.ledger.advance("01", s.READ_PARTIAL)
         self.ledger.set_card(
             "01",
             {
@@ -28,7 +31,6 @@ class Base(unittest.TestCase):
                 "leaves_open": [{"node": "P-THEORY-01", "loc": "sec V-D"}],
             },
         )
-        self.ledger.advance("01", s.FETCHED)
         self.ledger.save()
 
     def tearDown(self):
@@ -43,9 +45,9 @@ class PayloadTests(Base):
         status, payload = self.api().resolve("GET", "/api/papers")
         self.assertEqual(status, 200)
         self.assertEqual(payload["count"], 2)
-        self.assertEqual(payload["counts"], {s.FETCHED: 1, s.UNREAD: 1})
+        self.assertEqual(payload["counts"], {s.READ_PARTIAL: 1, s.UNREAD: 1})
         first = payload["papers"][0]
-        self.assertEqual(first["state"], s.FETCHED)
+        self.assertEqual(first["state"], s.READ_PARTIAL)
         self.assertEqual(first["receipt"]["present"], [])
         self.assertEqual(len(first["receipt"]["missing"]), 4)
         self.assertEqual(first["receipt"]["total"], 4)
@@ -56,7 +58,8 @@ class PayloadTests(Base):
     def test_paper_payload_includes_history_and_card(self):
         status, payload = self.api().resolve("GET", "/api/papers/01")
         self.assertEqual(status, 200)
-        self.assertEqual(len(payload["history"]), 2)
+        transitions = [event["to"] for event in payload["history"]]
+        self.assertEqual(transitions, [s.UNREAD, s.FETCHED, s.READ_PARTIAL])
         self.assertEqual(payload["card"]["solves"][0]["node"], "P-SCALE-01")
 
     def test_unknown_paper_is_404(self):
@@ -92,6 +95,8 @@ class PayloadTests(Base):
 
     def test_unresolved_phrase_lands_in_triage_with_suggestions(self):
         ledger = Ledger.open(self.ledger_path)
+        ledger.advance("02", s.FETCHED)
+        ledger.advance("02", s.READ_PARTIAL)
         ledger.set_card("02", {"leaves_open": [{"node": "uplink bandwith", "loc": "sec V"}]})
         ledger.save()
         _, payload = self.api().resolve("GET", "/api/gaps")

@@ -1,0 +1,8 @@
+id	name	kind	aliases	parent	excludes
+P-SCALE-01	cost grows faster than accuracy with model size	Problem	diminishing returns|cost accuracy tradeoff|scale cost	P-SCALE	
+P-EVAL-01	no shared protocol for comparing results	Problem	no shared benchmark|incomparable results|评测协议缺失	P-EVAL	
+L-ENGINEER-01	not real time	Limitation	too slow|non real time|非实时	L-ENGINEER	
+L-EVAL-01	evaluation on a single dataset only	Limitation	single dataset|no cross domain test|单数据集	L-EVAL	
+A-ASSUME-01	training labels are noise free	Assumption	clean labels|noise free labels	A-ASSUME	A-ASSUME-02
+A-ASSUME-02	training labels contain noise	Assumption	noisy labels|label noise	A-ASSUME	A-ASSUME-01
+M-SCALE-01	knowledge distillation	Method	distillation|KD|知识蒸馏	M-SCALE	
