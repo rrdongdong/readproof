@@ -152,6 +152,9 @@ jobs:
           python -m readproof init
           for id in 01 02 03 04; do
             python -m readproof add "$id" --title "Paper $id on multi-robot mapping" > /dev/null
+            # a card needs text behind it: READ_PARTIAL is reachable without a receipt
+            python -m readproof advance "$id" FETCHED > /dev/null
+            python -m readproof advance "$id" READ_PARTIAL > /dev/null
           done
           python -m readproof card 01 --solves "P-SCALE-01@sec III-A" --leaves-open "P-THEORY-01@sec V-D" --admits "L-ROBUST-01@sec V-C" --assumes "A-ASSUME-01@sec III-A" > /dev/null
           python -m readproof card 02 --solves "P-SCALE-01@sec IV" --leaves-open "P-THEORY-01@sec VI" --admits "L-ROBUST-01@sec V-B" --assumes "A-ASSUME-01@sec III" > /dev/null
