@@ -28,6 +28,14 @@ Hard problem from the self-assessment: the UI needed Node. It no longer does.
 - `RELEASE.md` — the three pre-release checks, how to rebuild the frontend, and the PyPI
   steps including a check that the wheel really contains `static/`
 
+### Fixed
+- `BUILD.json` listed the built files as **absolute paths**, so the manifest changed per
+  machine and published a home directory — the same mistake the demo ledger had. It is
+  relative now, and a test asserts it.
+- the source hash folded in raw bytes, so a Windows checkout with `core.autocrlf` looked
+  stale. Line endings are normalised to LF before hashing, `.gitattributes` pins LF for
+  the repo, and the built directory is marked `-text`.
+
 ### Note
 `pip install readproof` still 404s: publishing needs a PyPI token, so the release path is
 documented and prepared rather than executed.

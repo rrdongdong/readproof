@@ -80,6 +80,27 @@ class StalenessTests(unittest.TestCase):
         self.assertIn("stale", message)
         self.assertIn("readproof bundle", message)
 
+    def test_manifest_lists_relative_paths_only(self):
+        """An absolute path in the manifest changes per machine and leaks a home dir."""
+        bundle.write_manifest(bundle.source_fingerprint(self.web))
+        with open(bundle.MANIFEST, encoding="utf-8") as handle:
+            files = json.load(handle)["files"]
+        for entry in files:
+            self.assertFalse(os.path.isabs(entry), entry)
+        self.assertIn("index.html", files)
+
+    def test_line_endings_do_not_change_the_hash(self):
+        """A Windows checkout with core.autocrlf must not look like a stale build."""
+        import readproof.bundle as b
+
+        original = os.path.join(self.web, "src", "main.jsx")
+        with open(original, "wb") as handle:
+            handle.write(b"a\nb\nc\n")
+        unix_hash = b.source_fingerprint(self.web)
+        with open(original, "wb") as handle:
+            handle.write(b"a\r\nb\r\nc\r\n")
+        self.assertEqual(unix_hash, b.source_fingerprint(self.web))
+
     def test_manifest_records_files_and_note(self):
         bundle.write_manifest(bundle.source_fingerprint(self.web))
         with open(bundle.MANIFEST, encoding="utf-8") as handle:

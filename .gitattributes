@@ -1,0 +1,7 @@
+# Keep the committed frontend byte-identical on every checkout: the build hash and the
+# byte-for-byte rebuild check both assume LF.
+* text=auto eol=lf
+
+# Generated and binary files must never be line-ending converted.
+readproof/static/** -text
+web/package-lock.json text

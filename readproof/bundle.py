@@ -35,6 +35,17 @@ class BundleError(Exception):
     exit_code = EXIT_NPM_MISSING
 
 
+def _canonical_bytes(path):
+    """Read a source file as text-normalised bytes.
+
+    Line endings are folded to LF before hashing: a Windows checkout with
+    ``core.autocrlf`` would otherwise produce a different hash for identical sources and
+    report the committed build as stale on every Windows machine.
+    """
+    with open(path, "rb") as handle:
+        return handle.read().replace(b"\r\n", b"\n")
+
+
 def source_fingerprint(web_dir=WEB_DIR):
     """Hash the frontend sources that determine the build output."""
     entries = []
@@ -53,19 +64,16 @@ def source_fingerprint(web_dir=WEB_DIR):
                 files.extend(os.path.join(base, name) for name in sorted(names))
     for path in sorted(files):
         relative = os.path.relpath(path, web_dir).replace(os.sep, "/")
-        with open(path, "rb") as handle:
-            digest = hashlib.sha256(handle.read()).hexdigest()
+        digest = hashlib.sha256(_canonical_bytes(path)).hexdigest()
         entries.append("%s %s" % (relative, digest))
     return hashlib.sha256("\n".join(entries).encode("utf-8")).hexdigest()
 
 
 def write_manifest(source_hash, note=""):
+    # Relative paths only: an absolute path both changes per machine and publishes
+    # somebody's home directory, which is exactly what broke the demo ledger earlier.
     entries = sorted(
-        name
-        for name in os.listdir(STATIC_DIR)
-        if name != "BUILD.json" and os.path.isfile(os.path.join(STATIC_DIR, name))
-    ) + sorted(
-        os.path.join(base, name).replace(os.sep, "/")
+        os.path.relpath(os.path.join(base, name), STATIC_DIR).replace(os.sep, "/")
         for base, _dirs, names in os.walk(STATIC_DIR)
         for name in names
         if name != "BUILD.json"
@@ -73,7 +81,7 @@ def write_manifest(source_hash, note=""):
     payload = {
         "source": source_hash,
         "note": note or "built by `python -m readproof bundle`; committed on purpose",
-        "files": sorted(set(entries)),
+        "files": entries,
     }
     with open(MANIFEST, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
