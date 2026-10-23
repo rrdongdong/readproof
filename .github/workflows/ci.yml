@@ -262,7 +262,7 @@ jobs:
           PY
           cd "$GITHUB_WORKSPACE"
           python -m readproof --ledger /tmp/web-ledger.json serve \
-            --port 8011 --vocab vocab.tsv --web-dir web/dist &
+            --port 8011 --vocab tests/fixtures/vocab.tsv --web-dir web/dist &
           server=$!
           trap 'kill $server' EXIT
           for i in $(seq 1 30); do
