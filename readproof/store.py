@@ -71,6 +71,41 @@ def normalize_identifier(value):
     return re.sub(r"[^0-9a-z]+", "", text)
 
 
+def paper_view(paper):
+    """The machine-readable shape of one paper.
+
+    `--json` output and the web API both come from here: one shape or none. Before this,
+    `list --json` returned the raw ledger record (a bare receipt object) while the API
+    returned a computed summary (present/missing/total), so every consumer had to guess.
+    """
+    receipt = paper.get("receipt") or {}
+    missing = states.missing_receipt_fields(receipt)
+    state = paper.get("state", states.UNREAD)
+    return {
+        "id": paper.get("id"),
+        "title": paper.get("title", ""),
+        "state": state,
+        "venue": paper.get("venue", ""),
+        "arxiv": paper.get("arxiv", ""),
+        "doi": paper.get("doi", ""),
+        "source": paper.get("source", ""),
+        "receipt": {
+            "complete": not missing,
+            "present": [field for field in states.RECEIPT_FIELDS if field not in missing],
+            "missing": missing,
+            "total": len(states.RECEIPT_FIELDS),
+            "values": {field: receipt.get(field, "") for field in states.RECEIPT_FIELDS},
+            **({"extra": receipt["extra"]} if "extra" in receipt else {}),
+        },
+        "may_write": [
+            artefact for artefact in states.ARTEFACTS if states.can_write(state, artefact)
+        ],
+        "has_card": bool(paper.get("has_card")),
+        "intake": paper.get("intake"),
+        "history": paper.get("history", []),
+    }
+
+
 class Ledger:
     """A ledger file plus the operations that keep its invariants."""
 

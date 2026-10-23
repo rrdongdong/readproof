@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import graph as graph_mod
 from . import states
 from . import vocab as vocab_mod
-from .store import Ledger
+from .store import Ledger, paper_view
 
 #: Explicit content types. Do not ask ``mimetypes``: on Windows it reads the registry,
 #: and ``HKEY_CLASSES_ROOT\.js`` commonly maps to ``text/plain``. A module script served
@@ -94,37 +94,11 @@ class ServeError(Exception):
 # --------------------------------------------------------------------- payloads
 
 
-def receipt_status(paper):
-    receipt = paper.get("receipt") or {}
-    missing = states.missing_receipt_fields(receipt)
-    return {
-        "complete": not missing,
-        "present": [f for f in states.RECEIPT_FIELDS if f not in missing],
-        "missing": missing,
-        "total": len(states.RECEIPT_FIELDS),
-        "values": {f: receipt.get(f, "") for f in states.RECEIPT_FIELDS},
-        "extra": receipt.get("extra", {}),
-    }
-
-
 def paper_summary(ledger, paper):
-    return {
-        "id": paper.get("id"),
-        "title": paper.get("title", ""),
-        "state": paper.get("state", states.UNREAD),
-        "venue": paper.get("venue", ""),
-        "arxiv": paper.get("arxiv", ""),
-        "doi": paper.get("doi", ""),
-        "source": paper.get("source", ""),
-        "receipt": receipt_status(paper),
-        "may_write": [
-            artefact
-            for artefact in states.ARTEFACTS
-            if states.can_write(paper.get("state", states.UNREAD), artefact)
-        ],
-        "has_card": ledger.card_for(paper.get("id")) is not None,
-        "intake": paper.get("intake"),
-    }
+    """Serve the same shape the CLI prints, so there is one contract, not two."""
+    view = paper_view(paper)
+    view["card"] = ledger.card_for(paper.get("id"))
+    return view
 
 
 def papers_payload(ledger):
@@ -138,11 +112,7 @@ def papers_payload(ledger):
 
 
 def paper_payload(ledger, paper_id):
-    paper = ledger.require(paper_id)
-    summary = paper_summary(ledger, paper)
-    summary["history"] = paper.get("history", [])
-    summary["card"] = ledger.card_for(paper_id)
-    return summary
+    return paper_summary(ledger, ledger.require(paper_id))
 
 
 def meta_payload():

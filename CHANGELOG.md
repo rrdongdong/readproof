@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.2 — unreleased
+
+One machine-readable shape for a paper, instead of two.
+
+### Changed
+- `--json` output and the web API now come from the **same** `store.paper_view()`.
+  `list --json` used to return the raw ledger record — a bare receipt object with no
+  `present`/`missing`/`total` — while `GET /api/papers` returned a computed summary. Every
+  consumer had to guess which shape it was holding. Found while wiring the DSH plugin,
+  which reads `list --json` and expected the enriched form.
+- `paper_view()` also reports `history`, `has_card` and `intake`, so one call is enough.
+
+### Fixed
+- `serve.paper_summary()` and `papers_payload()` duplicated the receipt computation; they
+  now delegate, so the two shapes cannot drift apart again.
+
 ## 0.7.1 — unreleased
 
 Answers "how do I install it?" without requiring anybody's PyPI credential.

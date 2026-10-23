@@ -23,6 +23,7 @@ from .store import (
     DEFAULT_FILENAME,
     Ledger,
     LedgerError,
+    paper_view,
 )
 
 EXIT_USAGE = 64
@@ -726,7 +727,7 @@ def cmd_status(args):
     ledger = Ledger.open(args.ledger)
     paper = ledger.require(args.paper_id)
     if args.json:
-        emit(paper, True)
+        emit(paper_view(paper), True)
         return 0
     print("%s  %s" % (paper["id"], paper["state"]))
     print("  title   : %s" % paper.get("title"))
@@ -760,7 +761,14 @@ def cmd_list(args):
         if args.state is None or paper.get("state") == args.state
     ]
     if args.json:
-        emit({"count": len(papers), "papers": papers}, True)
+        emit(
+            {
+                "count": len(papers),
+                "counts": {k: v for k, v in ledger.counts().items() if v},
+                "papers": [paper_view(paper) for paper in papers],
+            },
+            True,
+        )
         return 0
     if not papers:
         print("(no papers)")
