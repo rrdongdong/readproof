@@ -1,0 +1,11 @@
+id	name	kind	aliases	parent	excludes
+P-SCALE-01	uplink bandwidth grows with team size	Problem	bandwidth bottleneck|uplink saturation|通信开销大|上行带宽受限	P-SCALE	
+P-SCALE-02	global consistency missing in distributed setups	Problem	no global consistency|lack of global consensus	P-SCALE	
+P-THEORY-01	no provable bound between bit budget and reconstruction error	Problem	rate-distortion bound missing|bit budget error relation unknown	P-THEORY	
+L-ROBUST-01	matcher degrades in turbid water	Limitation	turbid water failure|scattering breaks matching|浑浊水体失效	L-ROBUST	
+L-ROBUST-02	revisit detection unreliable	Limitation	loop closure unreliable|重访检测不可靠	L-ROBUST	
+L-EVAL-01	evaluation limited to a single dataset	Limitation	single dataset evaluation|单一数据集评测	L-EVAL	
+L-ENGINEER-01	real-time budget exceeded	Limitation	not real time|超时	L-ENGINEER	
+A-ASSUME-01	camera intrinsics known	Assumption	intrinsics known|内参已知	A-ASSUME	A-ASSUME-02
+A-ASSUME-02	camera intrinsics unknown	Assumption	intrinsics unknown|内参未知	A-ASSUME	A-ASSUME-01
+M-SCALE-01	topological map compression	Method	topo compression|拓扑压缩	M-SCALE	

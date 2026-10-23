@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.5.0 — unreleased
+
+The semantic layer: a controlled vocabulary, problem cards, a graph, and six gap queries.
+This is the step from "read correctly" to "connect correctly".
+
+### Added
+- `readproof/vocab.py` — the only place a node may be created
+  - TSV with `id / name / kind / aliases / parent / excludes`; ids are
+    `<KIND>-<CATEGORY>-<NN>` (`P` problem, `L` limitation, `A` assumption, `M` method;
+    categories `SCALE ROBUST ASSUME THEORY EVAL ENGINEER`)
+  - nine validation rules, each with a test: id format, category membership, id-prefix vs kind,
+    parent consistency, duplicate id, **one concept under two ids**, alias collisions,
+    `excludes` pointing at unknown ids, self-exclusion
+  - longest-alias resolution; `suggestions()` uses character similarity so a triage entry
+    like "uplink bandwith" still finds its concept
+  - `category_blank()` reports categories with no problem yet — the skeleton's visible blanks
+- `readproof/graph.py` — build, health, six queries, output
+  - every edge carries paper + location; **an edge without a location fails the health check**
+  - unresolved phrases go to `triage`, never into the graph
+  - anomalies are records, not vocabulary nodes, and are excluded from node/component stats
+  - G1 consensus · G2 silent · G3 contested (criticised but never benchmarked) · G4 assumption
+    (one finding per contradictory pair, silent when a paper assumes both) · G5 isolated
+    (suppressed when a stronger query already reported the node) · G6 anomaly
+  - health thresholds with a **scale guard**: a graph smaller than 10 referenced nodes is not
+    judged for orphans, so a bootstrap graph does not fail on day one
+  - `gap_table()` renders statements + evidence + counting, and ends with five questions for the
+    human — deliberately not "innovation ideas"
+- `ledger.set_card()` / `card_for()` — cards live next to the papers they describe; unknown
+  relations are rejected
+- CLI: `vocab`, `card` (with `--solves/--leaves-open/--assumes/--admits/--criticizes/
+  --criticizes-uncompared/--anomaly`), `graph build|check|query|stats`
+- 59 new tests (145 total), including "one concept two ids is rejected", "unknown node lands in
+  triage, not the graph", "edge without location exits 4", "compared criticism is not contested"
+- CI: a graph stage building from four cards, asserting gap types are present, that a missing
+  location exits 4, and that an unknown vocabulary id lands in triage
+
+### Fixed
+- `category_blank()` compared full kind names against short ones, so every category looked empty
+- G4 reported each contradictory pair twice (once per direction)
+- G5 repeated nodes already surfaced by G1–G4
+
 ## 0.4.0 — unreleased
 
 A PDF can come in now — and be refused before it influences anything.

@@ -11,10 +11,12 @@ import json
 import os
 import sys
 
+from . import graph as graph_mod
 from . import pdf as pdf_mod
 from . import receipt as receipt_mod
 from . import sources as sources_mod
 from . import states
+from . import vocab as vocab_mod
 from .store import (
     DEFAULT_FILENAME,
     Ledger,
@@ -33,6 +35,7 @@ exit codes
   7   no PDF text extractor available
   8   PDF failed integrity checks (truncated / not a PDF)
   9   manual upload does not match the ledger title
+  4   the graph or vocabulary is unhealthy (fragmented, or an edge without evidence)
 
 examples
   readproof init
@@ -41,6 +44,9 @@ examples
   readproof advance 07 READ_FULL                    # blocked without a receipt
   readproof receipt 07 --file receipt.json
   readproof advance 07 READ_FULL
+  readproof vocab
+  readproof card 07 --solves P-SCALE-01@sec III-A --leaves-open P-THEORY-01@sec V-D
+  readproof graph build -o ./out
   readproof receipt 08 --number "Table II: 41.2 dB (p.5)" \\
       --hyper "lr=2e-4 (sec IV-A, p.4)" \\
       --negative "we do not report motion blur (sec V-D, p.7)" \\
@@ -129,6 +135,62 @@ def build_parser():
         "--accept-mismatch",
         action="store_true",
         help="proceed even if the first pages do not look like the ledger title",
+    )
+
+    voc = sub.add_parser("vocab", help="validate or inspect the controlled vocabulary")
+    voc.add_argument(
+        "--file",
+        default=os.environ.get("READPROOF_VOCAB", "vocab.tsv"),
+        help="vocabulary TSV (default: $READPROOF_VOCAB or ./vocab.tsv)",
+    )
+
+    crd = sub.add_parser("card", help="record a problem card for a paper")
+    crd.add_argument("paper_id")
+    crd.add_argument("--file", help="JSON file with relations")
+    crd.add_argument(
+        "--solves", action="append", default=[], metavar="ID[@LOC]",
+        help="problem this paper claims to solve (repeatable)",
+    )
+    crd.add_argument(
+        "--leaves-open", action="append", default=[], metavar="ID[@LOC]",
+        help="problem the paper admits remains open (repeatable)",
+    )
+    crd.add_argument(
+        "--assumes", action="append", default=[], metavar="ID[@LOC]",
+        help="assumption the method rests on (repeatable)",
+    )
+    crd.add_argument(
+        "--admits", action="append", default=[], metavar="ID[@LOC]",
+        help="limitation of its own method (repeatable)",
+    )
+    crd.add_argument(
+        "--criticizes", action="append", default=[], metavar="ID[@LOC]",
+        help="method it calls insufficient (repeatable)",
+    )
+    crd.add_argument(
+        "--criticizes-uncompared", action="append", default=[], metavar="ID[@LOC]",
+        help="criticised method that was never benchmarked (repeatable)",
+    )
+    crd.add_argument(
+        "--anomaly", action="append", default=[], metavar="LOC=NOTE",
+        help="an unexplained result: loc=note (repeatable)",
+    )
+
+    grf = sub.add_parser("graph", help="build, check and query the problem graph")
+    grf.add_argument("action", choices=["build", "check", "query", "stats"])
+    grf.add_argument(
+        "--vocab",
+        default=os.environ.get("READPROOF_VOCAB", "vocab.tsv"),
+        help="vocabulary TSV (default: $READPROOF_VOCAB or ./vocab.tsv)",
+    )
+    grf.add_argument("-o", "--out", help="directory for gap-table.md and graph.json")
+    grf.add_argument(
+        "--only", action="append", default=[], choices=sorted(graph_mod.QUERIES),
+        help="restrict the query to specific gap types (repeatable)",
+    )
+    grf.add_argument(
+        "--lenient", action="store_true",
+        help="do not fail the health check on threshold breaches",
     )
 
     sta = sub.add_parser("status", help="show one paper")
@@ -418,6 +480,163 @@ def cmd_intake(args):
     return 0
 
 
+def _split_id_loc(value):
+    if "@" in value:
+        identifier, loc = value.split("@", 1)
+        return {"node": identifier.strip(), "loc": loc.strip()}
+    return {"node": value.strip(), "loc": ""}
+
+
+def cmd_vocab(args):
+    try:
+        vocabulary = vocab_mod.Vocabulary.load(args.file)
+    except FileNotFoundError:
+        raise vocab_mod.VocabError("vocabulary not found: %s" % args.file)
+
+    payload = {
+        "file": args.file,
+        "terms": len(vocabulary),
+        "by_kind": {
+            kind: len(vocabulary.by_kind(kind))
+            for kind in ("Problem", "Limitation", "Assumption", "Method")
+        },
+        "category_blanks": vocabulary.category_blank(),
+        "terms_detail": [term.to_dict() for term in vocabulary],
+    }
+    if args.json:
+        emit(payload, True)
+        return 0
+    print("vocabulary: %s" % args.file)
+    print("  terms: %d  (%s)" % (
+        payload["terms"],
+        ", ".join("%s=%d" % (k, v) for k, v in payload["by_kind"].items() if v),
+    ))
+    if payload["category_blanks"]:
+        print("  empty categories: %s" % ", ".join(payload["category_blanks"]))
+    for term in vocabulary:
+        print("  %-14s %-10s %s" % (term.id, term.kind, term.name))
+    return 0
+
+
+def cmd_card(args):
+    ledger = Ledger.open(args.ledger)
+    if args.file:
+        with open(args.file, encoding="utf-8") as handle:
+            card = json.load(handle)
+    else:
+        card = {}
+        for relation, values in (
+            ("solves", args.solves),
+            ("leaves_open", getattr(args, "leaves_open", [])),
+            ("assumes", args.assumes),
+            ("admits", args.admits),
+            ("criticizes", args.criticizes),
+        ):
+            if values:
+                card[relation] = [_split_id_loc(value) for value in values]
+        if args.criticizes_uncompared:
+            card.setdefault("criticizes", []).extend(
+                dict(_split_id_loc(value), compared=False, evidence="E2")
+                for value in args.criticizes_uncompared
+            )
+        if getattr(args, "anomaly", None):
+            anomalies = []
+            for value in args.anomaly:
+                loc, _, note = value.partition("=")
+                anomalies.append({"loc": loc.strip(), "note": note.strip()})
+            card["anomaly"] = anomalies
+
+    if not card:
+        raise LedgerError("no relations given; pass --file or at least one --solves/--admits/...")
+    stored = ledger.set_card(args.paper_id, card)
+    ledger.save()
+    relations = {k: len(v) for k, v in stored.items() if k != "paper"}
+    emit(
+        {"paper": args.paper_id, "relations": relations},
+        args.json,
+        "card stored for %s: %s"
+        % (args.paper_id, ", ".join("%s=%d" % item for item in sorted(relations.items()))),
+    )
+    return 0
+
+
+def cmd_graph(args):
+    try:
+        vocabulary = vocab_mod.Vocabulary.load(args.vocab)
+    except FileNotFoundError:
+        raise vocab_mod.VocabError(
+            "vocabulary not found: %s (create one; the build refuses to invent nodes)"
+            % args.vocab
+        )
+    ledger = Ledger.open(args.ledger)
+    built = graph_mod.build(ledger, vocabulary, lenient=args.lenient)
+    health = built.health()
+
+    if args.action == "stats":
+        if args.json:
+            emit(health, True)
+        else:
+            stats = health["stats"]
+            print("papers      : %d" % stats["papers"])
+            print("edges       : %d" % stats["edges"])
+            print("nodes used  : %d of %d" % (stats["nodes_referenced"], stats["nodes_in_vocabulary"]))
+            print("triage pool : %d (%.0f%%)" % (stats["triage"], stats["triage_ratio"] * 100))
+            print("orphans     : %d (%.0f%%)" % (len(stats["orphans"]), stats["orphan_ratio"] * 100))
+            print("components  : %d" % stats["components"])
+            print("no-loc edges: %d" % stats["edges_without_loc"])
+            print("mean aliases: %.2f" % stats["mean_aliases"])
+            if stats["category_blanks"]:
+                print("empty cats  : %s" % ", ".join(stats["category_blanks"]))
+            for failure in health["failures"]:
+                print("  FAIL: %s" % failure)
+        return 0 if health["ok"] else graph_mod.EXIT_GRAPH_UNHEALTHY
+
+    if args.action == "check":
+        if args.json:
+            emit(health, True)
+        else:
+            print("health:", "ok" if health["ok"] else "unhealthy")
+            for failure in health["failures"]:
+                print("  - %s" % failure)
+            if built.triage:
+                print("triage pool (needs a human, not a new node):")
+                for paper, relation, phrase in built.triage:
+                    guesses = vocabulary.suggestions(phrase)
+                    hint = ", ".join(t.id for t in guesses) or "no candidate"
+                    print("  %s %-14s %r -> %s" % (paper, relation, phrase, hint))
+        return 0 if health["ok"] else graph_mod.EXIT_GRAPH_UNHEALTHY
+
+    findings = graph_mod.run_queries(built, only=args.only)
+
+    if args.out:
+        table_path, json_path = graph_mod.write_outputs(built, findings, args.out)
+    else:
+        table_path = json_path = None
+
+    if args.action == "build":
+        if args.json:
+            emit({"health": health, "findings": findings,
+                  "gap_table": table_path, "graph": json_path}, True)
+        else:
+            print(graph_mod.gap_table(findings, health["stats"]))
+            if table_path:
+                print("\nwrote %s" % table_path)
+                print("wrote %s" % json_path)
+        return 0 if (health["ok"] or args.lenient) else graph_mod.EXIT_GRAPH_UNHEALTHY
+
+    # action == "query"
+    if args.json:
+        emit({"findings": findings}, True)
+    else:
+        if not findings:
+            print("no gaps found (small graphs legitimately have none)")
+        for finding in findings:
+            print("%s [%s] %s" % (finding["kind"], finding["label"], finding["statement"]))
+            for item in finding["evidence"]:
+                print("    - %s" % item)
+    return 0
+
+
 def cmd_status(args):
     ledger = Ledger.open(args.ledger)
     paper = ledger.require(args.paper_id)
@@ -480,6 +699,9 @@ COMMANDS = {
     "advance": cmd_advance,
     "receipt": cmd_receipt,
     "extract": cmd_extract,
+    "vocab": cmd_vocab,
+    "card": cmd_card,
+    "graph": cmd_graph,
     "intake": cmd_intake,
     "check": cmd_check,
     "status": cmd_status,
@@ -503,6 +725,8 @@ def main(argv=None):
         pdf_mod.PdfError,
         sources_mod.ExtractorUnavailable,
         sources_mod.ExtractionFailed,
+        vocab_mod.VocabError,
+        graph_mod.GraphError,
     ) as exc:
         code = getattr(exc, "exit_code", 1)
         print("readproof: %s" % exc, file=sys.stderr)

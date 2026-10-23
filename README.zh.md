@@ -88,8 +88,9 @@ $ readproof receipt 07 --from-pdf paper.pdf
 | `7` | 机器上没有可用的 PDF 文本抽取器 |
 | `8` | PDF 完整性校验失败（截断 / 不是 PDF） |
 | `9` | 手动上传的文件与台账标题不符 |
+| `4` | 图谱/词表不健康（碎片化、待归类过多、边无证据） |
 
-命令：`init`、`add`、`advance`、`receipt`、`extract`、`intake`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
+命令：`init`、`add`、`advance`、`receipt`、`extract`、`intake`、`vocab`、`card`、`graph`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
 （`--ledger` 或 `$READPROOF_LEDGER`）；每次状态变化都进该论文的 `history`，事后可审计。
 
 ## 状态机（治假读）
@@ -157,6 +158,53 @@ UNREAD ─────────────┤              ├──▶ FETC
 
 产出是 **gap 表**，刻意不产出"创新点"：创新需要知道你的算力、数据和导师方向的人来判断，而 AI 生成的"创新点"被当成自己的工作属于诚信问题。所以 gap 表只给：问题陈述、证据链（页码/章节）、已试过的解法、未试的角度、验证成本——再附一张给使用者的问题清单。
 
+## 问题图谱
+
+笔记回答不了「还有什么没解决」——答案在论文之间，不在任何单篇里。所以每篇论文录一张**问题卡**，
+卡片再被解析到**受控词表**上：
+
+```console
+$ readproof vocab --file vocab.tsv
+vocabulary: vocab.tsv
+  terms: 10  (Problem=3, Limitation=4, Assumption=2, Method=1)
+  empty categories: ROBUST, ASSUME, EVAL, ENGINEER
+
+$ readproof card 03 --leaves-open "P-THEORY-01@sec V" \
+                    --admits "L-ROBUST-01@sec IV-D" \
+                    --assumes "A-ASSUME-02@sec III-B" \
+                    --criticizes-uncompared "M-SCALE-01@sec II-A" \
+                    --anomaly "sec V-C Table 4=agent 越多上行反而越少；未解释"
+
+$ readproof graph build --vocab vocab.tsv -o out
+```
+
+词表是制表符分隔、人工维护的文件，id 形如 `P-SCALE-01`（`P`=问题 `L`=局限 `A`=假设 `M`=方法，
+类别限 SCALE/ROBUST/ASSUME/THEORY/EVAL/ENGINEER）。
+
+**构建过程绝不新建节点。** 解析不上的短语进「待归类池」并给出建议——一个概念被拆成两个 id，
+是图谱唯一的死法。
+
+### 六类缺口查询
+
+| 查询 | 条件 | 怎么读 |
+|---|---|---|
+| **G1** 共鸣 | ≥3 篇都承认某问题未解 | 真问题，风险最低 |
+| **G2** 沉默 | ≥2 篇承认某局限，无人宣称解决 | 性价比最高 |
+| **G3** 争议 | 某篇说某方法不行，**且从未与其对比** | 补一个实验就能定论 |
+| **G4** 假设 | 两方法假设互斥，无人跨越 | 适合小项目 |
+| **G5** 孤证 | 只被提到一次，无后续 | 可能是伪问题，只列不荐 |
+| **G6** 异常 | 数字与直觉相反且未解释 | 机理空白 |
+
+产出 `out/gap-table.md` 与 `out/graph.json`。表格给的是问题陈述、证据、以及「有/无解决者」的计数，
+**不产出「创新点」**——不知道你的算力、数据和导师方向，生成出来的想法是空的；把它当自己的成果
+更是诚信问题。所以每张表末尾给的是五个问题，而不是五个点子。
+
+### 健康度，而不是感觉
+
+图一旦碎片化，`graph build` 直接 `exit 4`：孤点比例、待归类比例、连通分量数，以及
+**任何没有位置的边**（没有证据的边只是回忆）。另外有规模门槛——五篇论文的初始图不会被按孤点比例
+判死，只有大到可能碎片化时才判。
+
 ## 什么算成功
 
 - 随便抽一条结论，能指出它在哪一页哪张表
@@ -178,13 +226,14 @@ UNREAD ─────────────┤              ├──▶ FETC
 | PDF 完整性 + 身份核对（`pdf.py`） | ✅ 已实现 |
 | PDF → 文本（委托给已安装的抽取器，`sources.py`） | ✅ 已实现，23 个测试 |
 | 随机抽查 | 设计完成，未实现 |
-| 受控词表 + 图构建 | 设计完成，未实现 |
-| 缺口查询 G1–G6 | 设计完成，未实现 |
+| 受控词表（`vocab.py`） | ✅ 已实现，9 条校验规则 |
+| 问题卡 + 建图 + 健康度（`graph.py`） | ✅ 已实现 |
+| 缺口查询 G1–G6 | ✅ 已实现 |
 
 今天能端到端做到的：维护一份去重台账；从论文文本里抽出四项读证指纹，且当输入只是摘要或节选时**拒绝**；
 没有完整读证就拒绝把论文推过 `FETCHED`；每条规则被违反都给明确退出码。
 还不能做的：自己解析 PDF 文本（它转去调用 `pdftotext`/`mutool`/你的 `$READPROOF_PDF_COMMAND`，
-一个都没有时明确退出 7），以及构建问题图谱。
+一个都没有时明确退出 7）。
 
 设计说明：[`docs/design.md`](./docs/design.md)
 

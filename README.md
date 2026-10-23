@@ -108,8 +108,9 @@ The gates are only real if a caller cannot ignore them, so failure is an exit co
 | `7` | no PDF text extractor available |
 | `8` | PDF failed integrity checks (truncated / not a PDF) |
 | `9` | manual upload does not match the ledger title |
+| `4` | graph/vocabulary unhealthy (fragmented, unresolved triage, edge without evidence) |
 
-Commands: `init`, `add`, `advance`, `receipt`, `extract`, `intake`, `check`, `status`, `list`, `demo`. The ledger is a plain
+Commands: `init`, `add`, `advance`, `receipt`, `extract`, `intake`, `vocab`, `card`, `graph`, `check`, `status`, `list`, `demo`. The ledger is a plain
 JSON file (`--ledger`, or `$READPROOF_LEDGER`); state changes are appended to a per-paper `history`, so
 every jump is auditable after the fact.
 
@@ -187,6 +188,61 @@ knows the hardware, the data and the advisor; and an AI-generated "novelty" pass
 research-integrity problem. So the table gives: problem statement, evidence chain with page/section, what
 has been tried, what has not, validation cost — plus a worksheet of questions for the human.
 
+## The problem graph
+
+Notes cannot answer *"what is still unsolved?"* — the answer lives between papers, not inside
+one. So papers get **problem cards**, and the cards are resolved against a **controlled vocabulary**:
+
+```console
+$ readproof vocab --file vocab.tsv
+vocabulary: vocab.tsv
+  terms: 10  (Problem=3, Limitation=4, Assumption=2, Method=1)
+  empty categories: ROBUST, ASSUME, EVAL, ENGINEER
+
+$ readproof card 03 --leaves-open "P-THEORY-01@sec V" \
+                    --admits "L-ROBUST-01@sec IV-D" \
+                    --assumes "A-ASSUME-02@sec III-B" \
+                    --criticizes-uncompared "M-SCALE-01@sec II-A" \
+                    --anomaly "sec V-C Table 4=more agents, less uplink; unexplained"
+
+$ readproof graph build --vocab vocab.tsv -o out
+```
+
+Vocabulary file (tab-separated, human-edited; ids look like `P-SCALE-01`):
+
+```
+id           name                                        kind        aliases                              parent
+P-SCALE-01   uplink bandwidth grows with team size       Problem     bandwidth bottleneck|uplink saturation   P-SCALE
+L-ROBUST-01  matcher degrades in turbid water             Limitation  turbid water failure|浑浊水体失效        L-ROBUST
+A-ASSUME-01  camera intrinsics known                     Assumption  intrinsics known                       P-ASSUME  (excludes A-ASSUME-02)
+```
+
+**The build never invents a node.** An unresolved phrase goes to the triage pool with suggestions,
+because one concept forked into two ids is how a graph dies.
+
+### Six gap queries
+
+| Query | Condition | Reading |
+|---|---|---|
+| **G1** consensus | ≥3 papers say a problem is still open | real problem, lowest risk |
+| **G2** silent | ≥2 papers admit a limitation, nobody claims to solve it | best effort/reward |
+| **G3** contested | a paper calls a method insufficient **and never benchmarks it** | one experiment settles it |
+| **G4** assumption | two methods rest on contradictory assumptions, nobody bridges | fits a small project |
+| **G5** isolated | exactly one mention, no follow-up | may be a non-problem — listed only |
+| **G6** anomaly | reported numbers contradict intuition, unexplained | mechanism gap |
+
+Output is `out/gap-table.md` plus `out/graph.json`. The table gives statements, evidence and the
+`solved/unsolved` counts — **not "innovation ideas"**. A generated idea is empty without knowing your
+hardware, data and advisor, and presenting one as your own is an integrity problem rather than a
+feature. Each table ends with five questions for the human instead.
+
+### Health, not vibes
+
+`graph build` fails with exit 4 when the graph is fragmented — orphan ratio, triage ratio, component
+count, and **any edge without a location** (an edge without evidence is a recollection). The scale guard
+means a five-paper bootstrap graph is not judged for orphans; only a graph large enough to be fragmented
+is.
+
 ## What counts as success
 
 - pull any conclusion and point at the page/table it came from
@@ -209,14 +265,15 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 | PDF integrity + identity checks (`pdf.py`) | ✅ implemented |
 | PDF → text, delegated to an installed extractor (`sources.py`) | ✅ implemented, 23 tests |
 | Spot-check challenge | designed, not implemented |
-| Controlled vocabulary + graph build | designed, not implemented |
-| Gap queries G1–G6 | designed, not implemented |
+| Controlled vocabulary (`vocab.py`) | ✅ implemented, 9 validation rules |
+| Problem cards + graph build + health (`graph.py`) | ✅ implemented |
+| Gap queries G1–G6 | ✅ implemented |
 
 What `readproof` can do today, end to end: keep a deduplicated ledger; extract the four receipt
 fingerprints from a paper's text and refuse when the text is only an abstract or an excerpt; refuse to
 advance a paper past `FETCHED` without a complete receipt; fail with a specific exit code for each rule
 broken. What it cannot do yet: parse a PDF's text itself (it shells out to `pdftotext`/`mutool`/your
-`$READPROOF_PDF_COMMAND`, and says so with exit 7 when none exists), or build the problem graph.
+`$READPROOF_PDF_COMMAND`, and says so with exit 7 when none exists).
 
 Design rationale: [`docs/design.md`](./docs/design.md).
 

@@ -141,13 +141,53 @@ jobs:
           python -m readproof status 10
           echo "pdf intake: ok"
 
+      - name: Problem graph (vocabulary refuses to fork concepts)
+        run: |
+          set -euo pipefail
+          cd "$(mktemp -d)"
+          export PYTHONPATH="$GITHUB_WORKSPACE"
+          V="$GITHUB_WORKSPACE/tests/fixtures/vocab.tsv"
+
+          python -m readproof vocab --file "$V" > /dev/null
+          python -m readproof init
+          for id in 01 02 03 04; do
+            python -m readproof add "$id" --title "Paper $id on multi-robot mapping" > /dev/null
+          done
+          python -m readproof card 01 --solves "P-SCALE-01@sec III-A" --leaves-open "P-THEORY-01@sec V-D" --admits "L-ROBUST-01@sec V-C" --assumes "A-ASSUME-01@sec III-A" > /dev/null
+          python -m readproof card 02 --solves "P-SCALE-01@sec IV" --leaves-open "P-THEORY-01@sec VI" --admits "L-ROBUST-01@sec V-B" --assumes "A-ASSUME-01@sec III" > /dev/null
+          python -m readproof card 03 --leaves-open "P-THEORY-01@sec V" --admits "L-ROBUST-01@sec IV-D" --assumes "A-ASSUME-02@sec III-B" --criticizes-uncompared "M-SCALE-01@sec II-A" --anomaly "sec V-C Table 4=more agents, less uplink; unexplained" > /dev/null
+          python -m readproof card 04 --leaves-open "P-SCALE-02@sec V" --admits "L-EVAL-01@sec IV" > /dev/null
+
+          mkdir out
+          python -m readproof graph build --vocab "$V" -o out
+          test -s out/gap-table.md
+          test -s out/graph.json
+          grep -q "G1 consensus" out/gap-table.md
+          grep -q "G6 anomaly" out/gap-table.md
+
+          # an edge with no location is a recollection, not evidence
+          python -m readproof card 04 --leaves-open "P-SCALE-02" > /dev/null
+          set +e
+          python -m readproof graph check --vocab "$V"; noloc=$?
+          set -e
+          test "$noloc" = "4" || { echo "missing location: expected 4, got $noloc"; exit 1; }
+
+          # an unresolved phrase must land in triage, never in the graph
+          python -m readproof card 04 --leaves-open "P-SCALE-77@sec V" > /dev/null
+          set +e
+          python -m readproof --json graph stats --vocab "$V" | grep -q '"triage": 1'; triage=$?
+          set -e
+          test "$triage" = "0" || { echo "triage pool did not receive the unknown node"; exit 1; }
+
+          echo "problem graph: ok"
+
       - name: No third-party imports
         run: |
           python - <<'PY'
           import ast, pathlib
 
           allowed = {
-              "__future__", "argparse", "hashlib", "json", "os", "re", "shlex",
+              "__future__", "argparse", "difflib", "hashlib", "json", "os", "re", "shlex",
               "shutil", "subprocess", "sys", "tempfile", "datetime", "pathlib",
               "unittest", "urllib", "readproof",
           }

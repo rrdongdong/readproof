@@ -71,6 +71,7 @@ class Ledger:
         self.data = data if data is not None else {
             "version": LEDGER_VERSION,
             "papers": [],
+            "cards": [],
         }
 
     # ---------------------------------------------------------------- loading
@@ -117,6 +118,10 @@ class Ledger:
     @property
     def papers(self):
         return self.data["papers"]
+
+    @property
+    def cards(self):
+        return self.data.setdefault("cards", [])
 
     def find(self, paper_id):
         for paper in self.papers:
@@ -232,6 +237,58 @@ class Ledger:
         return stored
 
     # ------------------------------------------------------------------ reads
+
+    def set_card(self, paper_id, card):
+        """Attach a problem card to a paper.
+
+        A card is where the graph comes from, so it is validated here: the paper must
+        exist, and only known relations are accepted. Whether each entry resolves to a
+        vocabulary term is the graph builder's decision, not the store's — an unresolved
+        phrase belongs in the triage pool, not in an error.
+        """
+        from . import graph as graph_mod
+
+        paper = self.require(paper_id)
+        if not isinstance(card, dict):
+            raise LedgerError("card must be a JSON object")
+        cleaned = {"paper": paper_id}
+        for relation, entries in card.items():
+            if relation == "paper":
+                continue
+            if relation not in graph_mod.RELATIONS:
+                raise LedgerError(
+                    "unknown relation %r; known: %s"
+                    % (relation, ", ".join(sorted(graph_mod.RELATIONS)))
+                )
+            if isinstance(entries, str):
+                entries = [entries]
+            if not isinstance(entries, list):
+                raise LedgerError("relation %r must be a list" % relation)
+            normalised = []
+            for entry in entries:
+                if isinstance(entry, str):
+                    normalised.append({"node": entry, "loc": ""})
+                elif isinstance(entry, dict):
+                    if relation != "anomaly" and not entry.get("node"):
+                        raise LedgerError(
+                            "relation %r: entry without a node" % relation
+                        )
+                    normalised.append(dict(entry))
+                else:
+                    raise LedgerError("relation %r: entries must be strings or objects" % relation)
+            if normalised:
+                cleaned[relation] = normalised
+
+        self.cards[:] = [c for c in self.cards if c.get("paper") != paper_id]
+        self.cards.append(cleaned)
+        paper["has_card"] = True
+        return cleaned
+
+    def card_for(self, paper_id):
+        for card in self.cards:
+            if card.get("paper") == paper_id:
+                return card
+        return None
 
     def counts(self):
         tally = {state: 0 for state in states.STATES}
