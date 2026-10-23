@@ -46,7 +46,15 @@ class IncompleteReceipt(LedgerError):
     exit_code = EXIT_INCOMPLETE_RECEIPT
 
 
+#: Pins the clock for reproducible artefacts (the committed demo ledger, and tests).
+#: A generated file that changes on every run turns `git pull` into a conflict.
+CLOCK_ENV = "READPROOF_NOW"
+
+
 def _now():
+    pinned = os.environ.get(CLOCK_ENV, "").strip()
+    if pinned:
+        return pinned
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 

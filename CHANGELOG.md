@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.4 — unreleased
+
+The demo ledger no longer turns `git pull` into a conflict.
+
+### Fixed
+- Committed demo outputs changed on every run, because the ledger records timestamps in
+  each paper's `history`. Any `python demo/build_demo.py` left a dirty `demo/ledger.json`,
+  and the next `git pull` refused to merge. Reported from a real pull on Windows.
+  - `store` now honours `READPROOF_NOW`, a pinned clock for reproducible artefacts
+  - `demo/build_demo.py` pins it, so rebuilding is byte-identical and the committed files
+    stay committed
+  - CI asserts `git diff --exit-code -- demo/` after a rebuild, so this cannot silently
+    come back
+- 2 tests for the clock (pinned and unpinned)
+
+### Note
+Committing generated files is a deliberate trade: a fresh clone can start the UI with no
+build step. That only works if the generation is deterministic — which it now is, and is
+checked every run.
+
 ## 0.6.3 — unreleased
 
 Two more Windows bugs, both found by the new windows CI job rather than by guessing.

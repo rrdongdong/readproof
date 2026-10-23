@@ -220,6 +220,12 @@ jobs:
           print("cards only on readable papers: ok")
           PY
 
+          # The demo outputs are committed, so rebuilding them must be a no-op: a
+          # generated file that changes every run makes `git pull` conflict.
+          git diff --exit-code -- demo/ || {
+            echo "demo outputs are not reproducible; pin the clock (READPROOF_NOW)"; exit 1; }
+          echo "demo rebuild is byte-identical"
+
       - name: No third-party imports
         run: |
           python - <<'PY'

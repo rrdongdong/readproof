@@ -118,6 +118,41 @@ class TransitionGateTests(LedgerTestCase):
         self.assertEqual(paper["source"], s.MANUAL_UPLOAD)
 
 
+class PinnedClockTests(LedgerTestCase):
+    """A committed generated file must be byte-reproducible, or `git pull` conflicts."""
+
+    def test_clock_can_be_pinned(self):
+        import os
+
+        previous = os.environ.get("READPROOF_NOW")
+        os.environ["READPROOF_NOW"] = "2026-01-01T00:00:00+00:00"
+        try:
+            ledger = Ledger.open(self.path, create=True)
+            ledger.add("07", "T")
+            ledger.advance("07", s.FETCHED)
+            stamps = [event["at"] for event in ledger.find("07")["history"]]
+            self.assertEqual(stamps, ["2026-01-01T00:00:00+00:00"] * 2)
+        finally:
+            if previous is None:
+                os.environ.pop("READPROOF_NOW", None)
+            else:
+                os.environ["READPROOF_NOW"] = previous
+
+    def test_clock_is_real_by_default(self):
+        import os
+
+        previous = os.environ.pop("READPROOF_NOW", None)
+        try:
+            ledger = Ledger.open(self.path, create=True)
+            ledger.add("07", "T")
+            stamp = ledger.find("07")["history"][0]["at"]
+            self.assertNotEqual(stamp, "2026-01-01T00:00:00+00:00")
+            self.assertRegex(stamp, r"^\d{4}-\d{2}-\d{2}T")
+        finally:
+            if previous is not None:
+                os.environ["READPROOF_NOW"] = previous
+
+
 class PersistenceTests(LedgerTestCase):
     def test_round_trip(self):
         ledger = Ledger.open(self.path, create=True)

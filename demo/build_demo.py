@@ -28,6 +28,11 @@ LEDGER = os.path.join(HERE, "ledger.json")
 VOCAB = os.path.join(HERE, "vocab.tsv")
 WEB_DIR = os.path.join(ROOT, "web", "dist")
 
+#: Fixed clock. The ledger's history records timestamps, so without this the committed
+#: demo files would change on every run and `git pull` would hit a conflict after any
+#: demo. Reproducible output is also what lets CI assert `git diff --exit-code demo/`.
+PINNED_NOW = "2026-01-01T00:00:00+00:00"
+
 PAPERS = [
     ("07", "[synthetic] Dense Reconstruction of Degraded Scenes", "CVPR 2026 (fixture)"),
     ("08", "[synthetic] Short Excerpt Without A Receipt", ""),
@@ -41,6 +46,7 @@ def cli(*args, expect=(0,)):
     """Run the readproof CLI against the demo ledger."""
     env = dict(os.environ)
     env["PYTHONPATH"] = ROOT + os.pathsep + env.get("PYTHONPATH", "")
+    env["READPROOF_NOW"] = PINNED_NOW
     command = [sys.executable, "-m", "readproof", "--ledger", LEDGER] + list(args)
     # readproof writes UTF-8 by design; decoding with the Windows locale (cp936) would
     # fail on the same symbols that used to break encoding.
@@ -123,6 +129,7 @@ def serve():
         return 10
     env = dict(os.environ)
     env["PYTHONPATH"] = ROOT + os.pathsep + env.get("PYTHONPATH", "")
+    env["READPROOF_NOW"] = PINNED_NOW
     command = [
         sys.executable, "-m", "readproof", "--ledger", LEDGER, "serve",
         "--port", "8010", "--vocab", VOCAB, "--web-dir", WEB_DIR,
