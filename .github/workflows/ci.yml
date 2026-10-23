@@ -37,8 +37,10 @@ jobs:
           code=$?
           tail -n 40 /tmp/unit.log
           if [ "$code" != "0" ]; then
-            # job logs need auth to read; annotations do not, so surface the tail here
-            sed 's/^/::error::/' /tmp/unit.log | tail -n 60
+            # job logs need auth to read; annotations do not. Only the failure block
+            # (before the "Ran N tests" summary) is useful, and annotations are capped,
+            # so send that instead of the whole verbose tail.
+            sed -n '/^=\{20,\}/,$p' /tmp/unit.log | head -n 40 | sed 's/^/::error::/'
           fi
           exit "$code"
 
@@ -331,4 +333,13 @@ jobs:
         run: python -m unittest tests.test_encoding -v
 
       - name: Unit tests
-        run: python -m unittest discover -s tests -v
+        shell: bash
+        run: |
+          set +e
+          python -m unittest discover -s tests -v > unit.log 2>&1
+          code=$?
+          tail -n 40 unit.log
+          if [ "$code" != "0" ]; then
+            sed -n '/^=\{20,\}/,$p' unit.log | head -n 40 | sed 's/^/::error::/'
+          fi
+          exit "$code"
