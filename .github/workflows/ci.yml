@@ -31,7 +31,16 @@ jobs:
           python -c "import readproof; print('version', readproof.__version__)"
 
       - name: Unit tests
-        run: python -m unittest discover -s tests -v
+        run: |
+          set +e
+          python -m unittest discover -s tests -v > /tmp/unit.log 2>&1
+          code=$?
+          tail -n 40 /tmp/unit.log
+          if [ "$code" != "0" ]; then
+            # job logs need auth to read; annotations do not, so surface the tail here
+            sed 's/^/::error::/' /tmp/unit.log | tail -n 60
+          fi
+          exit "$code"
 
       - name: Gate smoke — illegal transitions must exit 5
         run: |
