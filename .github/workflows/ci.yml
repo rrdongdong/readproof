@@ -380,3 +380,64 @@ jobs:
             sed -n '/^=\{20,\}/,$p' unit.log | head -n 40 | sed 's/^/::error::/'
           fi
           exit "$code"
+
+  package:
+    # Builds the artefact a user actually installs and proves it is self-sufficient.
+    # Needs no credential: the wheel is attached to the run and can be installed directly,
+    # so `pip install readproof` from PyPI is a convenience, not a prerequisite.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: The wheel really contains the frontend
+        run: |
+          wheel=$(ls dist/*.whl)
+          echo "wheel: $wheel"
+          python -m zipfile -l "$wheel" | grep -q 'readproof/static/index.html' || {
+            echo "::error::the wheel has no readproof/static/index.html — publishing this would serve 503"
+            exit 1
+          }
+          python -m zipfile -l "$wheel" | grep -q 'readproof/static/assets/' || {
+            echo "::error::the wheel has no built assets"
+            exit 1
+          }
+
+      - name: Install the wheel somewhere clean and serve the bundled app
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/venv
+          /tmp/venv/bin/python -m pip install --quiet dist/*.whl
+          cd /tmp
+          /tmp/venv/bin/python -m readproof demo > /dev/null
+          /tmp/venv/bin/python - <<'PY'
+          from readproof import serve
+          path = serve.find_web_dir()
+          assert path.endswith("static"), path
+          print("bundled frontend inside the installed wheel:", path)
+          PY
+          /tmp/venv/bin/python -m readproof init > /dev/null
+          /tmp/venv/bin/python -m readproof --ledger ./readproof-ledger.json serve --port 8012 &
+          server=$!
+          trap 'kill $server' EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8012/api/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8012/ | grep -q '<div id="root">'
+          echo "an installed wheel serves the app with no Node and no --web-dir"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: readproof-wheel
+          path: |
+            dist/*.whl
+            dist/*.tar.gz

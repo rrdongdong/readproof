@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.1 — unreleased
+
+Answers "how do I install it?" without requiring anybody's PyPI credential.
+
+### Added
+- CI `package` job: builds sdist + wheel, asserts `readproof/static/index.html` and the
+  built assets are really inside the wheel (publishing without them would serve 503),
+  installs the wheel into a clean virtualenv, and serves the app from it with no Node and
+  no `--web-dir`. The wheel is attached to the run as an artifact.
+- README (en/zh): three installation paths, starting with the one that works today —
+  `pip install "readproof @ git+https://github.com/rrdongdong/readproof.git"`.
+- RELEASE.md: what a PyPI API token is, why it cannot be shared or pasted into a chat, and
+  what to do instead if you would rather not publish at all.
+
+### Note
+Nothing here needs a token, which was the point: the token only shortens the command.
+
 ## 0.7.0 — unreleased
 
 Hard problem from the self-assessment: the UI needed Node. It no longer does.

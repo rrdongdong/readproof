@@ -60,3 +60,35 @@ pattern and the published package would serve a 503.
 Semantic-ish, but the honest driver is the CHANGELOG: each section names what broke and
 what was found by whom. A patch release that fixes a Windows-only crash still gets its own
 section, because that is the part a reader wants.
+
+## What a "PyPI token" is, and why this file does not contain one
+
+PyPI is the package index `pip` talks to. Uploading needs a credential tied to your PyPI
+account: an API token (username `__token__`, password `pypi-...`). It is not a shared
+secret — it authorises publishing **under your name**, so it belongs to you and only you.
+Two consequences:
+
+- never paste it into a chat, an issue, or a commit; if it leaks, publish is compromised
+  until you revoke it;
+- nobody else can publish for you. That is why the release steps below are documented
+  rather than executed.
+
+Practical safety rules:
+
+- scope the token to this project only when PyPI offers it, and revoke it after the first
+  successful upload if you do not plan to publish often;
+- prefer `twine upload` with the token typed at the prompt, or `TWINE_API_KEY` in the
+  environment of a single command — not in `~/.pypirc` on a shared machine;
+- CI does **not** hold a token. The `package` job builds and attaches the wheel as a run
+  artifact instead, which covers everyone who is not published yet.
+
+## If you would rather not publish at all
+
+That is a legitimate choice and nothing breaks:
+
+```console
+$ pip install "readproof @ git+https://github.com/rrdongdong/readproof.git"
+```
+
+or download the wheel from the `package` job's artifacts. The only thing a package index
+buys is a shorter command.

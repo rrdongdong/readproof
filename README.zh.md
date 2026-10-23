@@ -41,6 +41,26 @@ serving http://127.0.0.1:8010  (Ctrl-C to stop)
 $ cd web && npm install && cd .. && python -m readproof bundle
 ```
 
+## 安装
+
+三种方式，按对你的要求从少到多排：
+
+```console
+# 1. 直接从 git 装 —— 现在就能用，不经过任何包索引
+$ pip install "readproof @ git+https://github.com/rrdongdong/readproof.git"
+
+# 2. 用 CI 构建好的 wheel（Actions → 那次运行 → Artifacts → readproof-wheel）
+$ pip install readproof-0.7.0-py3-none-any.whl
+
+# 3. 从 PyPI —— 发布之后（见 RELEASE.md）
+$ pip install readproof
+```
+
+三种方式装出来的包**都自带前端**，所以 `readproof serve` 不需要 Node，也不需要额外步骤。
+
+CI 的 `package` job 会构建 wheel、断言 `readproof/static/index.html` 真的在里面、把它装进干净的
+virtualenv 并从中起服务——**坏产物会在构建阶段失败，而不是失败在你晚上要用的时候**。
+
 ## 快速开始
 
 零依赖 —— Python 3.9+ 和标准库就够。

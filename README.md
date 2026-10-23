@@ -52,6 +52,26 @@ the `web` job rebuilds and asserts the result is byte-identical. Maintainers reb
 $ cd web && npm install && cd .. && python -m readproof bundle
 ```
 
+## Install
+
+Three ways, in order of how much they ask of you:
+
+```console
+# 1. straight from git — works today, no package index involved
+$ pip install "readproof @ git+https://github.com/rrdongdong/readproof.git"
+
+# 2. from a wheel built by CI (Actions → the run → Artifacts → readproof-wheel)
+$ pip install readproof-0.7.0-py3-none-any.whl
+
+# 3. from PyPI — once it is published (see RELEASE.md)
+$ pip install readproof
+```
+
+All three carry the built frontend inside the package, so `readproof serve` works with no
+Node and no extra step. The `package` job in CI builds the wheel, asserts
+`readproof/static/index.html` is really inside it, installs it into a clean virtualenv and
+serves the app from it — so a broken artefact fails the build instead of a user's evening.
+
 ## Quickstart
 
 No dependencies — Python 3.9+ and the standard library only.
