@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 — unreleased
+
+A PDF can come in now — and be refused before it influences anything.
+
+### Added
+- `readproof/pdf.py` — byte-level inspection, no parser
+  - `inspect_bytes()`: `%PDF-` header, `%%EOF` trailer, size floor (64 B), page-object count
+    (`/Type /Page` only, so the `/Pages` tree node is not miscounted), SHA-256
+  - `require_valid()` raises `PdfError` (exit 8) — a truncated download looks like a successful
+    fetch and would otherwise produce a receipt from half a paper
+  - `download()`: http(s) only, 30 MB cap, no redirect to `file://`
+  - `identity_matches()`: ledger title vs. the first pages, so an upload of the wrong paper is
+    caught before it becomes a receipt (exit 9, overridable with `--accept-mismatch`)
+- `readproof/sources.py` — extractor discovery without shipping one
+  - tries `pdftotext`, then `mutool`, then `$READPROOF_PDF_COMMAND`
+  - contract: PDF path is the last argument, page-separated text on stdout; `{pdf}` placeholder
+    optional, so plain CLIs work unchanged
+  - no extractor ⇒ `ExtractorUnavailable` (exit 7) with four concrete options, rather than a
+    silent empty read
+  - distinguishes "extractor failed" from "PDF has no text layer (scanned)"
+- CLI: `intake <id> <pdf-or-url>`, `receipt --from-pdf`, and `extract` now auto-detects a PDF
+  - `intake` records `{source, bytes, sha256, page_objects, identity, accepted_mismatch}` on the
+    paper and moves it to `FETCHED` with `via=manual_upload` — never further
+- fixtures: a synthetic valid PDF, a truncated one, a non-PDF, and a fake extractor that doubles
+  as executable documentation of the contract
+- 23 new tests (86 total)
+- CI: a PDF intake stage asserting exit 8 (truncated, non-PDF), 9 (title mismatch) and 6
+  (`READ_FULL` after an accepted intake), then the full path to `VERIFIED`
+
+### Notes
+- Still zero runtime dependencies; the extractor is external by design, not vendored.
+
 ## 0.3.0 — unreleased
 
 Receipt extraction. The gate that was only a validator now has a producer — and the

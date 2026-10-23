@@ -67,6 +67,23 @@ $ readproof status 07
     2026-10-22T13:38:53+00:00  FETCHED -> READ_FULL (pipeline)
 ```
 
+Or hand it a PDF and let an installed extractor do the work:
+
+```console
+$ export READPROOF_PDF_COMMAND='pdftotext -layout {} -'   # optional; auto-detected
+$ readproof intake 07 paper.pdf
+intake ok: 07 -> FETCHED
+  sha256: 4b6851c9c4ad1dcc...
+  bytes: 451, 3 page object(s)
+  identity: 4/4 title words found in the first pages
+$ readproof receipt 07 --from-pdf paper.pdf
+```
+
+`intake` is the manual-upload path from the design: it checks integrity (`%%EOF`, size, page objects),
+computes a SHA-256, verifies the first pages actually look like the ledger's title, and stops at
+`FETCHED` — it never grants `READ_FULL`. A truncated download exits 8; a PDF that does not match the
+title exits 9 until you pass `--accept-mismatch`.
+
 `paper.txt` is text with form-feed page breaks — what `pdftotext`, most extractors and
 [`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) emit. `readproof` does not parse PDFs itself; a stdlib
 PDF parser fails exactly where CVF/IEEE files are hardest (subsetted CID fonts, pages inside `/ObjStm`),
@@ -88,8 +105,11 @@ The gates are only real if a caller cannot ignore them, so failure is an exit co
 | `2` | duplicate paper — **blocked, not merged** |
 | `5` | illegal state transition (including manual upload skipping ahead) |
 | `6` | incomplete reading receipt |
+| `7` | no PDF text extractor available |
+| `8` | PDF failed integrity checks (truncated / not a PDF) |
+| `9` | manual upload does not match the ledger title |
 
-Commands: `init`, `add`, `advance`, `receipt`, `extract`, `check`, `status`, `list`, `demo`. The ledger is a plain
+Commands: `init`, `add`, `advance`, `receipt`, `extract`, `intake`, `check`, `status`, `list`, `demo`. The ledger is a plain
 JSON file (`--ledger`, or `$READPROOF_LEDGER`); state changes are appended to a per-paper `history`, so
 every jump is auditable after the fact.
 
@@ -186,7 +206,8 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 | JSON ledger + CLI with gated exit codes (`store.py`, `cli.py`) | ✅ runnable, 24 tests |
 | Reading receipt **validation** | ✅ implemented (rejects abstract-only receipts) |
 | Reading receipt **extraction** from extracted text (`receipt.py`) | ✅ implemented, 19 tests |
-| PDF → text (delegated to `dsh-pdf`) | out of scope by design |
+| PDF integrity + identity checks (`pdf.py`) | ✅ implemented |
+| PDF → text, delegated to an installed extractor (`sources.py`) | ✅ implemented, 23 tests |
 | Spot-check challenge | designed, not implemented |
 | Controlled vocabulary + graph build | designed, not implemented |
 | Gap queries G1–G6 | designed, not implemented |
@@ -194,8 +215,8 @@ emits files, and its value accumulates in a ledger, not in a conversation histor
 What `readproof` can do today, end to end: keep a deduplicated ledger; extract the four receipt
 fingerprints from a paper's text and refuse when the text is only an abstract or an excerpt; refuse to
 advance a paper past `FETCHED` without a complete receipt; fail with a specific exit code for each rule
-broken. What it cannot do yet: fetch or extract the PDF itself (delegated to `dsh-pdf`), or build the
-problem graph.
+broken. What it cannot do yet: parse a PDF's text itself (it shells out to `pdftotext`/`mutool`/your
+`$READPROOF_PDF_COMMAND`, and says so with exit 7 when none exists), or build the problem graph.
 
 Design rationale: [`docs/design.md`](./docs/design.md).
 

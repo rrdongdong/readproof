@@ -1,0 +1,21 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 158 >>
+stream
+BT /F1 12 Tf 72 720 Td (Page 1 of the fixture) Tj ET
+BT /F1 12 Tf 72 720 Td (Page 2 of the fixture) Tj ET
+BT /F1 12 Tf 72 720 Td (Page 3 of the fixture) Tj ET
+endstream
+endobj
+trailer
+<< /Root 1 0 R /Size 5 >>
+%%EOF

@@ -49,6 +49,22 @@ $ readproof advance 07 READ_FULL
 07 -> READ_FULL
 ```
 
+或者直接给它一个 PDF，让机器上已装的抽取器干活：
+
+```console
+$ export READPROOF_PDF_COMMAND='pdftotext -layout {} -'   # 可选，默认会自动探测
+$ readproof intake 07 paper.pdf
+intake ok: 07 -> FETCHED
+  sha256: 4b6851c9c4ad1dcc...
+  bytes: 451, 3 page object(s)
+  identity: 4/4 title words found in the first pages
+$ readproof receipt 07 --from-pdf paper.pdf
+```
+
+`intake` 就是设计里的「手动上传」通道：校验完整性（`%%EOF`、体积、页对象）、算 SHA-256、
+核对首页是否真的像台账里那篇论文，然后**停在 `FETCHED`**——它永远不会直接给 `READ_FULL`。
+下载截断退出 8；文件与标题不符退出 9，除非你显式 `--accept-mismatch`。
+
 `paper.txt` 是带换页符（`\f`）分隔的纯文本，也就是 `pdftotext`、多数抽取器以及
 [`dsh-pdf`](https://github.com/rrdongdong/dsh-pdf) 的输出。**readproof 不自己解析 PDF**：标准库解析器恰好
 在 CVF/IEEE 文件最难的地方失效（子集化 CID 字体、页面藏在 `/ObjStm` 里），而抽出乱码比诚实失败更糟。
@@ -69,8 +85,11 @@ $ readproof advance 07 READ_FULL
 | `2` | 论文重复 —— **阻断，不合并** |
 | `5` | 非法状态转移（含手动上传越级） |
 | `6` | 读证不完整 |
+| `7` | 机器上没有可用的 PDF 文本抽取器 |
+| `8` | PDF 完整性校验失败（截断 / 不是 PDF） |
+| `9` | 手动上传的文件与台账标题不符 |
 
-命令：`init`、`add`、`advance`、`receipt`、`extract`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
+命令：`init`、`add`、`advance`、`receipt`、`extract`、`intake`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
 （`--ledger` 或 `$READPROOF_LEDGER`）；每次状态变化都进该论文的 `history`，事后可审计。
 
 ## 状态机（治假读）
@@ -156,14 +175,16 @@ UNREAD ─────────────┤              ├──▶ FETC
 | JSON 台账 + 带闸门退出码的 CLI（`store.py`、`cli.py`） | ✅ 可运行，24 个测试 |
 | 读证**校验** | ✅ 已实现（只有摘要的读证会被拒） |
 | 读证**抽取**（从已抽好的文本里找四项指纹，`receipt.py`） | ✅ 已实现，19 个测试 |
-| PDF → 文本（交给 `dsh-pdf`） | 刻意不做 |
+| PDF 完整性 + 身份核对（`pdf.py`） | ✅ 已实现 |
+| PDF → 文本（委托给已安装的抽取器，`sources.py`） | ✅ 已实现，23 个测试 |
 | 随机抽查 | 设计完成，未实现 |
 | 受控词表 + 图构建 | 设计完成，未实现 |
 | 缺口查询 G1–G6 | 设计完成，未实现 |
 
 今天能端到端做到的：维护一份去重台账；从论文文本里抽出四项读证指纹，且当输入只是摘要或节选时**拒绝**；
 没有完整读证就拒绝把论文推过 `FETCHED`；每条规则被违反都给明确退出码。
-还不能做的：自己获取/抽取 PDF（交给 `dsh-pdf`），以及构建问题图谱。
+还不能做的：自己解析 PDF 文本（它转去调用 `pdftotext`/`mutool`/你的 `$READPROOF_PDF_COMMAND`，
+一个都没有时明确退出 7），以及构建问题图谱。
 
 设计说明：[`docs/design.md`](./docs/design.md)
 

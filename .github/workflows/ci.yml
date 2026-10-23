@@ -105,14 +105,51 @@ jobs:
           python -m readproof advance 08 READ_FULL
           echo "cli end-to-end: ok"
 
+      - name: PDF intake (integrity and identity, without a PDF parser)
+        run: |
+          set -euo pipefail
+          cd "$(mktemp -d)"
+          export PYTHONPATH="$GITHUB_WORKSPACE"
+          export READPROOF_PDF_COMMAND="python $GITHUB_WORKSPACE/tests/fixtures/fake_extractor.py {}"
+          F="$GITHUB_WORKSPACE/tests/fixtures"
+
+          python -m readproof init
+          python -m readproof add 10 --title "Dense Reconstruction of Degraded Scenes"
+          python -m readproof intake 10 "$F/valid.pdf"
+
+          python -m readproof add 11 --title "Something Else Entirely Different Here"
+
+          set +e
+          python -m readproof intake 10 "$F/truncated.pdf"; truncated=$?
+          python -m readproof intake 10 "$F/not_a_pdf.pdf"; notpdf=$?
+          python -m readproof intake 11 "$F/valid.pdf"; mismatch=$?
+          set -e
+
+          test "$truncated" = "8" || { echo "truncated: expected 8, got $truncated"; exit 1; }
+          test "$notpdf" = "8"    || { echo "not a pdf: expected 8, got $notpdf"; exit 1; }
+          test "$mismatch" = "9"  || { echo "mismatch: expected 9, got $mismatch"; exit 1; }
+
+          # an accepted intake stops at FETCHED; the receipt still has to be earned
+          set +e
+          python -m readproof advance 10 READ_FULL; noreceipt=$?
+          set -e
+          test "$noreceipt" = "6" || { echo "post-intake READ_FULL: expected 6, got $noreceipt"; exit 1; }
+
+          python -m readproof receipt 10 --from-pdf "$F/valid.pdf"
+          python -m readproof advance 10 READ_FULL
+          python -m readproof advance 10 VERIFIED
+          python -m readproof status 10
+          echo "pdf intake: ok"
+
       - name: No third-party imports
         run: |
           python - <<'PY'
           import ast, pathlib
 
           allowed = {
-              "__future__", "argparse", "json", "os", "re", "sys",
-              "tempfile", "datetime", "pathlib", "unittest", "readproof",
+              "__future__", "argparse", "hashlib", "json", "os", "re", "shlex",
+              "shutil", "subprocess", "sys", "tempfile", "datetime", "pathlib",
+              "unittest", "urllib", "readproof",
           }
           bad = []
           for path in pathlib.Path("readproof").rglob("*.py"):

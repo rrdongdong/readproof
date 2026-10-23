@@ -11,7 +11,9 @@ import json
 import os
 import sys
 
+from . import pdf as pdf_mod
 from . import receipt as receipt_mod
+from . import sources as sources_mod
 from . import states
 from .store import (
     DEFAULT_FILENAME,
@@ -28,6 +30,9 @@ exit codes
   2   duplicate paper (blocked, not merged)
   5   illegal state transition
   6   incomplete reading receipt
+  7   no PDF text extractor available
+  8   PDF failed integrity checks (truncated / not a PDF)
+  9   manual upload does not match the ledger title
 
 examples
   readproof init
@@ -87,6 +92,11 @@ def build_parser():
         help="extracted paper text (form-feed page breaks); fingerprints are found for you",
     )
     rec.add_argument(
+        "--from-pdf",
+        metavar="PDF",
+        help="a PDF; text is extracted with an installed extractor, then fingerprinted",
+    )
+    rec.add_argument(
         "--allow-partial",
         action="store_true",
         help="accept text that does not look like a full paper (records the verdict)",
@@ -102,11 +112,23 @@ def build_parser():
     ext = sub.add_parser(
         "extract", help="show what a receipt would contain, without storing it"
     )
-    ext.add_argument("text_file")
+    ext.add_argument("text_file", help="extracted text, or a PDF to extract from")
     ext.add_argument(
         "--allow-partial",
         action="store_true",
         help="do not refuse text that looks abstract-only or partial",
+    )
+
+    intk = sub.add_parser(
+        "intake", help="accept a manually supplied PDF or URL and stop at FETCHED"
+    )
+    intk.add_argument("paper_id")
+    intk.add_argument("source", help="local PDF path or http(s) URL")
+    intk.add_argument("--title", help="register the paper if the id is unknown")
+    intk.add_argument(
+        "--accept-mismatch",
+        action="store_true",
+        help="proceed even if the first pages do not look like the ledger title",
     )
 
     sta = sub.add_parser("status", help="show one paper")
@@ -196,7 +218,32 @@ def cmd_advance(args):
     return 0
 
 
+def _text_from_pdf(path):
+    """Extract text from a PDF, or explain precisely why that is not possible."""
+    text, meta = sources_mod.extract_text(path)
+    return text, meta
+
+
+def _maybe_pdf_text(path):
+    """Auto-detect: a PDF goes through an extractor, anything else is already text."""
+    with open(path, "rb") as handle:
+        head = handle.read(5)
+    if head.startswith(pdf_mod.MAGIC):
+        return _text_from_pdf(path)
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        return handle.read(), {"extractor": "plain-text", "chars": None, "pages": None}
+
+
 def _receipt_payload(args):
+    if getattr(args, "from_pdf", None):
+        text, meta = _text_from_pdf(args.from_pdf)
+        payload, _ = receipt_mod.extract_receipt(
+            text, require_full=not getattr(args, "allow_partial", False)
+        )
+        payload.setdefault("extra", {}).update(
+            {"extractor": meta["extractor"], "source_pdf_chars": meta["chars"]}
+        )
+        return payload
     if getattr(args, "from_text", None):
         with open(args.from_text, encoding="utf-8") as handle:
             text = handle.read()
@@ -249,9 +296,9 @@ def cmd_check(args):
 
 
 def cmd_extract(args):
-    with open(args.text_file, encoding="utf-8") as handle:
-        text = handle.read()
+    text, meta = _maybe_pdf_text(args.text_file)
     assessment = receipt_mod.assess(text)
+    assessment["extractor"] = meta.get("extractor")
     payload = {"assessment": assessment, "receipt": None, "missing": []}
     try:
         found, _ = receipt_mod.extract_receipt(
@@ -280,6 +327,94 @@ def cmd_extract(args):
     print("  chars : %d" % assessment["chars"])
     for field in states.RECEIPT_FIELDS:
         print("  [v] %-20s %s" % (field, payload["receipt"][field]))
+    return 0
+
+
+def cmd_intake(args):
+    ledger = Ledger.open(args.ledger, create=True)
+    paper = ledger.find(args.paper_id)
+    if paper is None:
+        if not args.title:
+            raise LedgerError(
+                "unknown paper %s: run `add %s --title ...` first, or pass --title"
+                % (args.paper_id, args.paper_id)
+            )
+        paper = ledger.add(args.paper_id, args.title)
+        ledger.save()
+
+    source = args.source
+    temporary = None
+    if source.lower().startswith(("http://", "https://")):
+        import tempfile
+
+        handle, temporary = tempfile.mkstemp(prefix="readproof-", suffix=".pdf")
+        os.close(handle)
+        pdf_mod.download(source, temporary)
+        local_path = temporary
+    else:
+        local_path = source
+
+    try:
+        report = pdf_mod.require_valid(local_path)
+
+        identity = {"checked": False, "ok": None, "detail": "no extractor available"}
+        if sources_mod.available() is not None:
+            try:
+                head_text, meta = _text_from_pdf(local_path)
+                ok, detail = pdf_mod.identity_matches(paper.get("title", ""), head_text)
+                identity = {
+                    "checked": True,
+                    "ok": ok,
+                    "detail": detail,
+                    "extractor": meta["extractor"],
+                }
+            except (sources_mod.ExtractionFailed, sources_mod.ExtractorUnavailable) as exc:
+                identity = {"checked": True, "ok": None, "detail": str(exc)}
+
+        if identity.get("ok") is False and not args.accept_mismatch:
+            raise pdf_mod.IdentityMismatch(
+                "manual upload does not look like %s (%s); re-run with --accept-mismatch "
+                "if you are sure" % (paper.get("title"), identity.get("detail"))
+            )
+
+        paper["intake"] = {
+            "source": source if source.lower().startswith("http") else os.path.abspath(source),
+            "bytes": report["bytes"],
+            "sha256": report["sha256"],
+            "page_objects": report["page_objects"],
+            "identity": identity,
+            "accepted_mismatch": bool(args.accept_mismatch),
+        }
+
+        current = paper.get("state", states.UNREAD)
+        if current in (states.UNREAD, states.FETCH_FAILED):
+            ledger.advance(args.paper_id, states.FETCHED, via=states.MANUAL_UPLOAD)
+        ledger.save()
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+
+    payload = {
+        "id": args.paper_id,
+        "state": ledger.find(args.paper_id)["state"],
+        "sha256": report["sha256"],
+        "bytes": report["bytes"],
+        "page_objects": report["page_objects"],
+        "identity": identity,
+    }
+    emit(
+        payload,
+        args.json,
+        "intake ok: %s -> %s\n  sha256: %s\n  bytes: %d, %d page object(s)\n  identity: %s"
+        % (
+            args.paper_id,
+            payload["state"],
+            report["sha256"][:16] + "...",
+            report["bytes"],
+            report["page_objects"],
+            identity.get("detail"),
+        ),
+    )
     return 0
 
 
@@ -345,6 +480,7 @@ COMMANDS = {
     "advance": cmd_advance,
     "receipt": cmd_receipt,
     "extract": cmd_extract,
+    "intake": cmd_intake,
     "check": cmd_check,
     "status": cmd_status,
     "list": cmd_list,
@@ -360,7 +496,14 @@ def main(argv=None):
     handler = COMMANDS[args.command]
     try:
         return handler(args)
-    except (LedgerError, states.IllegalTransition, receipt_mod.ReceiptExtractionError) as exc:
+    except (
+        LedgerError,
+        states.IllegalTransition,
+        receipt_mod.ReceiptExtractionError,
+        pdf_mod.PdfError,
+        sources_mod.ExtractorUnavailable,
+        sources_mod.ExtractionFailed,
+    ) as exc:
         code = getattr(exc, "exit_code", 1)
         print("readproof: %s" % exc, file=sys.stderr)
         return code
