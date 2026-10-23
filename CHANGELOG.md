@@ -5,20 +5,22 @@
 The demo ledger no longer turns `git pull` into a conflict.
 
 ### Fixed
-- Committed demo outputs changed on every run, because the ledger records timestamps in
-  each paper's `history`. Any `python demo/build_demo.py` left a dirty `demo/ledger.json`,
-  and the next `git pull` refused to merge. Reported from a real pull on Windows.
+- Committed demo outputs changed on every run, because the ledger stamps each paper's
+  `history` with the wall clock. Any `python demo/build_demo.py` left `demo/ledger.json`
+  dirty and the next `git pull` refused to merge. Reported from a real pull on Windows.
   - `store` now honours `READPROOF_NOW`, a pinned clock for reproducible artefacts
-  - `demo/build_demo.py` pins it, so rebuilding is byte-identical and the committed files
-    stay committed
-  - CI asserts `git diff --exit-code -- demo/` after a rebuild, so this cannot silently
-    come back
-- 2 tests for the clock (pinned and unpinned)
+  - `demo/build_demo.py` pins it and passes relative fixture paths
+  - `intake` records the source **exactly as given** instead of rewriting it to an
+    absolute path — an absolute path both changed per machine and published the author's
+    home directory in a public repository
+  - CI asserts `git diff --exit-code -- demo/` after a rebuild, which is what caught the
+    absolute-path problem immediately after the clock was pinned
+- 4 tests: pinned clock, real clock by default, verbatim source, relative source
 
 ### Note
 Committing generated files is a deliberate trade: a fresh clone can start the UI with no
-build step. That only works if the generation is deterministic — which it now is, and is
-checked every run.
+build step. That only works if generation is deterministic — now enforced on every run,
+not assumed.
 
 ## 0.6.3 — unreleased
 

@@ -52,7 +52,7 @@ def cli(*args, expect=(0,)):
     # fail on the same symbols that used to break encoding.
     result = subprocess.run(
         command, env=env, capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
+        encoding="utf-8", errors="replace", cwd=ROOT,
     )
     if result.returncode not in expect:
         sys.stderr.write("command failed (%d): %s\n%s%s\n"
@@ -76,8 +76,8 @@ def build():
 
     # 1. the full path: fetch → read → verify → a problem card
     add_paper(*PAPERS[0])
-    cli("intake", "07", os.path.join(FIXTURES, "valid.pdf"))
-    cli("receipt", "07", "--from-text", os.path.join(FIXTURES, "full_paper.txt"))
+    cli("intake", "07", os.path.join("tests", "fixtures", "valid.pdf"))
+    cli("receipt", "07", "--from-text", os.path.join("tests", "fixtures", "full_paper.txt"))
     cli("advance", "07", "READ_FULL")
     cli("advance", "07", "VERIFIED")
 

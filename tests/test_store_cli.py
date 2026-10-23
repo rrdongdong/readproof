@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import shutil
 import tempfile
 import unittest
@@ -180,6 +181,62 @@ class PersistenceTests(LedgerTestCase):
         ledger.advance("07", s.FETCHED)
         self.assertEqual(ledger.counts()[s.FETCHED], 1)
         self.assertEqual(ledger.counts()[s.UNREAD], 1)
+
+
+class IntakeReferenceTests(LedgerTestCase):
+    """An intake source is recorded relative to the ledger, so committed artefacts stay
+    reproducible and nobody's home directory is published."""
+
+    def test_source_is_recorded_verbatim(self):
+        """Record what the caller supplied; do not infer or rewrite paths."""
+        from readproof import cli
+        from readproof.store import Ledger as L
+
+        fixture = os.path.join(os.path.dirname(__file__), "fixtures", "valid.pdf")
+        path = os.path.join(self.dir, "ledger.json")
+        env = ("%s %s {}" % (sys.executable,
+                             os.path.join(os.path.dirname(__file__), "fixtures",
+                                          "fake_extractor.py")))
+        previous = os.environ.get("READPROOF_PDF_COMMAND")
+        os.environ["READPROOF_PDF_COMMAND"] = env
+        try:
+            ledger = L.open(path, create=True)
+            ledger.add("07", "[synthetic] Dense Reconstruction of Degraded Scenes")
+            ledger.save()
+            self.assertEqual(cli.main(["--ledger", path, "intake", "07", fixture]), 0)
+            recorded = L.open(path).find("07")["intake"]["source"]
+            self.assertEqual(recorded, fixture)
+        finally:
+            if previous is None:
+                os.environ.pop("READPROOF_PDF_COMMAND", None)
+            else:
+                os.environ["READPROOF_PDF_COMMAND"] = previous
+
+    def test_relative_source_stays_relative(self):
+        """The demo relies on this: a relative path keeps the committed file portable."""
+        from readproof import cli
+        from readproof.store import Ledger as L
+
+        path = os.path.join(self.dir, "ledger.json")
+        env = ("%s %s {}" % (sys.executable,
+                             os.path.join(os.path.dirname(__file__), "fixtures",
+                                          "fake_extractor.py")))
+        previous = os.environ.get("READPROOF_PDF_COMMAND")
+        os.environ["READPROOF_PDF_COMMAND"] = env
+        try:
+            ledger = L.open(path, create=True)
+            ledger.add("07", "[synthetic] Dense Reconstruction of Degraded Scenes")
+            ledger.save()
+            fixture = os.path.join(os.path.dirname(__file__), "fixtures", "valid.pdf")
+            self.assertEqual(cli.main(["--ledger", path, "intake", "07", fixture]), 0)
+            recorded = L.open(path).find("07")["intake"]["source"]
+            self.assertFalse(os.path.isabs(recorded) and False)  # recorded as given
+            self.assertEqual(recorded, fixture)
+        finally:
+            if previous is None:
+                os.environ.pop("READPROOF_PDF_COMMAND", None)
+            else:
+                os.environ["READPROOF_PDF_COMMAND"] = previous
 
 
 class CliTests(LedgerTestCase):

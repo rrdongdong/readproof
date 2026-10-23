@@ -405,6 +405,17 @@ def cmd_extract(args):
     return 0
 
 
+def _source_reference(source, ledger):  # noqa: ARG001 - ledger kept for the signature
+    """Record the source exactly as the caller supplied it.
+
+    No rewriting. An earlier version converted in-repo paths to relative ones, which made
+    a committed demo reproducible but required guessing what "near the ledger" means. The
+    honest rule is simpler: record the string you were given. The demo passes a relative
+    path, a real user passes whatever they have, and neither is mangled.
+    """
+    return source
+
+
 def cmd_intake(args):
     ledger = Ledger.open(args.ledger, create=True)
     paper = ledger.find(args.paper_id)
@@ -453,7 +464,7 @@ def cmd_intake(args):
             )
 
         paper["intake"] = {
-            "source": source if source.lower().startswith("http") else os.path.abspath(source),
+            "source": _source_reference(source, ledger),
             "bytes": report["bytes"],
             "sha256": report["sha256"],
             "page_objects": report["page_objects"],

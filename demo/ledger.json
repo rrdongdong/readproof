@@ -48,7 +48,7 @@
         }
       ],
       "intake": {
-        "source": "/home/ubuntu/.dsh/publish/readproof/tests/fixtures/valid.pdf",
+        "source": "tests/fixtures/valid.pdf",
         "bytes": 451,
         "sha256": "4b6851c9c4ad1dcc54a74558111ffeb7107cef9f4ffff7529bd90bd891cd9176",
         "page_objects": 1,
