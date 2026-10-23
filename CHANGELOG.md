@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.3 — unreleased
+
+Two more Windows bugs, both found by the new windows CI job rather than by guessing.
+
+### Fixed
+- `$READPROOF_PDF_COMMAND` mangled Windows paths: `shlex.split` applies POSIX rules where
+  a backslash escapes the next character, so `C:\tools\python.exe` became
+  `C:toolspython.exe` and `shutil.which` failed on a path that exists. `sources.split_command()`
+  now splits without POSIX escaping on Windows and strips quotes itself; quoted paths with
+  spaces work too.
+- tests assumed the interpreter is called `python3`; a GitHub runner calls it `python`.
+
+### Added
+- 2 regression tests for command splitting (Windows paths, quoted paths with spaces)
+- CI unit-test failures are now published as **annotations** (`::error::`), because job logs
+  need authentication while annotations are public. The first attempt pushed the verbose
+  tail and the annotation cap swallowed the failure; it now sends only the failure block.
+
 ## 0.6.2 — unreleased
 
 Windows fix: a single glyph could kill a build.

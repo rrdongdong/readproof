@@ -119,6 +119,24 @@ class ExtractorTests(unittest.TestCase):
         text, _ = sources.extract_text(str(FIXTURES / "valid.pdf"))
         self.assertIn("Abstract", text)
 
+    def test_windows_paths_survive_splitting(self):
+        """POSIX shlex eats backslashes, which turned C:\\tools\\python.exe into garbage."""
+        raw = "C:\\tools\\python.exe D:\\work\\extract.py {pdf}"
+        self.assertEqual(
+            sources.split_command(raw, windows=True),
+            ["C:\\tools\\python.exe", "D:\\work\\extract.py", "{pdf}"],
+        )
+        self.assertEqual(
+            sources.split_command(raw, windows=False)[0], "C:toolspython.exe"
+        )
+
+    def test_windows_quoted_paths_with_spaces(self):
+        raw = '"C:\\Program Files\\Py\\python.exe" "D:\\my tools\\ex.py" {pdf}'
+        self.assertEqual(
+            sources.split_command(raw, windows=True),
+            ["C:\\Program Files\\Py\\python.exe", "D:\\my tools\\ex.py", "{pdf}"],
+        )
+
     def test_failing_extractor_reports_failure(self):
         self.set_command("%s -c 'import sys; sys.exit(3)'" % sys.executable)
         with self.assertRaises(sources.ExtractionFailed):

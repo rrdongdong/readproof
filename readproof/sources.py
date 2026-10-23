@@ -43,11 +43,31 @@ class ExtractionFailed(Exception):
     exit_code = 1
 
 
+def split_command(raw, windows=None):
+    """Split a command template without destroying Windows paths.
+
+    ``shlex.split`` applies POSIX rules, where a backslash is an escape character, so
+    ``C:\\tools\\python.exe script.py`` came back as ``C:toolspython.exe script.py``
+    and ``shutil.which`` then failed on a path that exists. On Windows we split without
+    POSIX escaping and strip the surrounding quotes ourselves.
+    """
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows:
+        return shlex.split(raw)
+    tokens = []
+    for token in shlex.split(raw, posix=False):
+        if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'":
+            token = token[1:-1]
+        tokens.append(token)
+    return tokens
+
+
 def _template_from_env():
     raw = os.environ.get(ENV_OVERRIDE, "").strip()
     if not raw:
         return None
-    argv = shlex.split(raw)
+    argv = split_command(raw)
     if not any("{pdf}" in token for token in argv):
         argv = argv + ["{pdf}"]
     name = os.path.basename(argv[0]) or "custom"
@@ -60,7 +80,7 @@ def available(command=None):
     ``command`` may be an explicit template string (as in ``$READPROOF_PDF_COMMAND``).
     """
     if command:
-        argv = shlex.split(command)
+        argv = split_command(command)
         if not any("{pdf}" in token for token in argv):
             argv = argv + ["{pdf}"]
         if shutil.which(argv[0]):
