@@ -96,7 +96,9 @@ class ExtractorTests(unittest.TestCase):
         self.set_command("%s %s {} " % (sys.executable, FAKE_EXTRACTOR))
         found = sources.available()
         self.assertIsNotNone(found)
-        self.assertEqual(found[0], "python3")
+        # the extractor name is the basename of whatever interpreter is running us,
+        # which is "python" on a GitHub runner and "python3" on many Linux images
+        self.assertEqual(found[0], os.path.basename(sys.executable))
 
     def test_missing_configured_extractor_raises(self):
         self.set_command("/nonexistent/definitely-not-here {}")
