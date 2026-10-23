@@ -11,6 +11,7 @@ import json
 import os
 import sys
 
+from . import bundle as bundle_mod
 from . import graph as graph_mod
 from . import pdf as pdf_mod
 from . import receipt as receipt_mod
@@ -38,6 +39,7 @@ exit codes
   9   manual upload does not match the ledger title
   4   the graph or vocabulary is unhealthy (fragmented, or an edge without evidence)
   10  the built frontend directory is missing
+  11  npm is not installed, so the frontend cannot be rebuilt
 
 examples
   readproof init
@@ -194,6 +196,17 @@ def build_parser():
     grf.add_argument(
         "--lenient", action="store_true",
         help="do not fail the health check on threshold breaches",
+    )
+
+    bnd = sub.add_parser(
+        "bundle", help="rebuild the bundled frontend and stamp its source hash"
+    )
+    bnd.add_argument(
+        "action",
+        nargs="?",
+        choices=["build", "check"],
+        default="build",
+        help="build (default) or check whether the committed build is stale",
     )
 
     srv = sub.add_parser("serve", help="serve the read-only API and the built frontend")
@@ -661,6 +674,26 @@ def cmd_graph(args):
     return 0
 
 
+def cmd_bundle(args):
+    stale, message = bundle_mod.staleness()
+    if args.action == "check":
+        if args.json:
+            emit({"stale": stale, "message": message}, True)
+        else:
+            print(message)
+        return 1 if stale else 0
+    try:
+        target = bundle_mod.build()
+    except bundle_mod.BundleError as exc:
+        raise exc
+    payload = {"built": target, "source": bundle_mod.source_fingerprint()}
+    if args.json:
+        emit(payload, True)
+    else:
+        print("bundled frontend rebuilt: %s" % target)
+    return 0
+
+
 def cmd_serve(args):
     try:
         httpd = serve_mod.serve(
@@ -756,6 +789,7 @@ COMMANDS = {
     "graph": cmd_graph,
     "intake": cmd_intake,
     "check": cmd_check,
+    "bundle": cmd_bundle,
     "serve": cmd_serve,
     "status": cmd_status,
     "list": cmd_list,
@@ -801,6 +835,7 @@ def main(argv=None):
         vocab_mod.VocabError,
         graph_mod.GraphError,
         serve_mod.ServeError,
+        bundle_mod.BundleError,
     ) as exc:
         code = getattr(exc, "exit_code", 1)
         print("readproof: %s" % exc, file=sys.stderr)

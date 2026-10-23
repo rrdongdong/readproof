@@ -53,7 +53,36 @@ CONTENT_TYPES = {
 ASSET_EXTENSIONS = frozenset(CONTENT_TYPES) - {".html"}
 
 DEFAULT_PORT = 8000
-DEFAULT_WEB_DIR = os.path.join("web", "dist")
+
+#: The built frontend ships inside the package (``readproof/static``), so an installed
+#: copy of readproof has a working UI with no Node and no build step.
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+BUNDLED_WEB_DIR = os.path.join(PACKAGE_DIR, "static")
+DEFAULT_WEB_DIR = BUNDLED_WEB_DIR
+
+
+def find_web_dir(explicit=None):
+    """Locate the built frontend.
+
+    Order: what the caller asked for, then the bundled copy (present for both a wheel
+    install and a clone), then a development build. Returning ``None`` lets the server
+    start with a clear hint instead of a blank page.
+    """
+    # An explicit --web-dir is honoured or refused, never silently replaced: a typo in a
+    # path should say so rather than serve a different build than the one requested.
+    if explicit:
+        return explicit
+
+    candidates = []
+    env = os.environ.get("READPROOF_WEB_DIR", "").strip()
+    if env:
+        candidates.append(env)
+    candidates.append(BUNDLED_WEB_DIR)
+    candidates.append(os.path.join("web", "dist"))
+    for candidate in candidates:
+        if candidate and os.path.isfile(os.path.join(candidate, "index.html")):
+            return candidate
+    return BUNDLED_WEB_DIR
 
 EXIT_NO_WEB = 10
 
@@ -198,7 +227,7 @@ class Api(object):
     def __init__(self, ledger_path, vocab_path=None, web_dir=None):
         self.ledger_path = ledger_path
         self.vocab_path = vocab_path
-        self.web_dir = web_dir
+        self.web_dir = find_web_dir(web_dir)
 
     def ledger(self):
         return Ledger.open(self.ledger_path)
@@ -293,7 +322,11 @@ class Handler(BaseHTTPRequestHandler):
                 503,
                 {
                     "error": "no built frontend found",
-                    "hint": "run `npm install && npm run build` in web/, or start with --web-dir",
+                    "hint": (
+                        "an installed readproof ships one; from a source checkout rebuild "
+                        "it once with `python -m readproof bundle` (or `cd web && npm install "
+                        "&& npm run build`), then refresh"
+                    ),
                 },
             )
             return
@@ -332,10 +365,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(ledger_path, vocab_path=None, web_dir=None, host="127.0.0.1", port=DEFAULT_PORT):
     """Start the server. Returns the ``ThreadingHTTPServer`` so tests can shut it down."""
-    if web_dir and not os.path.isdir(web_dir):
+    resolved = find_web_dir(web_dir)
+    if not os.path.isfile(os.path.join(resolved, "index.html")):
         raise ServeError(
-            "web directory not found: %s\nrun `npm install && npm run build` in web/"
-            % web_dir
+            "no built frontend found (looked for %s).\n"
+            "the package ships one; if you are running from a source checkout, build it:\n"
+            "  python -m readproof bundle            (needs npm and node once)\n"
+            "  or: cd web && npm install && npm run build" % resolved
         )
     handler = type("BoundHandler", (Handler,), {"api": Api(ledger_path, vocab_path, web_dir)})
     httpd = ThreadingHTTPServer((host, port), handler)

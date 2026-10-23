@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.7.0 — unreleased
+
+Hard problem from the self-assessment: the UI needed Node. It no longer does.
+
+### Changed
+- **The built frontend now ships inside the package**, at `readproof/static/`, and is
+  committed. `readproof serve` finds it by itself, so a clone, a wheel or a `pip install`
+  all have a working UI. Before this, "one command to see it" actually meant
+  `cd web && npm install && npm run build` first — 65 packages for a demo.
+- Vite builds straight into the package (`build.outDir: '../readproof/static'`) so there is
+  exactly one copy of the built assets, not one in `web/dist` and another in the package.
+
+### Added
+- `readproof bundle` — rebuild the frontend and stamp `readproof/static/BUILD.json` with a
+  hash of `web/src`; `readproof bundle check` fails when the committed build is stale
+  (exit 1) and `bundle` itself exits 11 with instructions when npm is absent
+- `serve` resolves the web directory in a documented order: `--web-dir`, `$READPROOF_WEB_DIR`,
+  the bundled copy, then a development `web/dist`. An explicit `--web-dir` is honoured or
+  refused, never silently replaced — a typo should say so
+- 10 tests (186 total): fingerprint stability and change detection, staleness before and
+  after a source edit, explicit-dir precedence, and a guard that the committed bundle
+  matches the current `web/src`
+- CI: `bundle check` in the test job; the web job rebuilds and asserts the committed build
+  is byte-identical, checks the bundle makes no remote requests, and serves the app with
+  **no `--web-dir`** while asserting content types
+- `RELEASE.md` — the three pre-release checks, how to rebuild the frontend, and the PyPI
+  steps including a check that the wheel really contains `static/`
+
+### Note
+`pip install readproof` still 404s: publishing needs a PyPI token, so the release path is
+documented and prepared rather than executed.
+
 ## 0.6.5 — unreleased
 
 Blank page with the stylesheet applied — the worst kind of failure, because it looks

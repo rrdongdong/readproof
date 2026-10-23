@@ -20,15 +20,26 @@
 
 ## 不用读论文，先看效果
 
+**不需要 Node，也不需要构建**——前端产物就放在 Python 包里。
+
 ```console
 $ python demo/build_demo.py --serve
 serving http://127.0.0.1:8010  (Ctrl-C to stop)
 ```
 
 一个五篇论文的合成台账，覆盖 `VERIFIED` / `READ_PARTIAL` / `FETCH_FAILED` / `UNREAD` 四种状态，
-七个词的词表，六类缺口各出一条。需要先有 `web/dist`：`make web`，或者 `make serve-demo` 一步到位。
+七个词的词表，六类缺口各出一条。`demo/` 里全部是合成数据，这是刻意的——把编造的论文混进真实阅读台账，
+正是这个项目要防的事。
 
-`demo/` 里全部是合成数据，这是刻意的——把编造的论文混进真实阅读台账，正是这个项目要防的事。
+**为什么不用 Node。** `web/src` 是 Vite + React，构建产物提交在 **`readproof/static/`（包内部）**，
+`readproof serve` 会自己找到它。所以 clone 下来能用、`pip install` 完也能用。
+
+`readproof/static/BUILD.json` 记着 `web/src` 的哈希：CI 跑 `readproof bundle check`，产物过期就报错；
+`web` job 会重新构建并断言结果**字节一致**。维护者重建：
+
+```console
+$ cd web && npm install && cd .. && python -m readproof bundle
+```
 
 ## 快速开始
 
@@ -100,7 +111,8 @@ $ readproof receipt 07 --from-pdf paper.pdf
 | `7` | 机器上没有可用的 PDF 文本抽取器 |
 | `8` | PDF 完整性校验失败（截断 / 不是 PDF） |
 | `9` | 手动上传的文件与台账标题不符 |
-| `10` | 前端未构建（在 `web/` 里跑 `npm run build`） |
+| `10` | 前端产物缺失（跑 `python -m readproof bundle`） |
+| `11` | 没有 npm，无法重建前端 |
 | `4` | 图谱/词表不健康（碎片化、待归类过多、边无证据） |
 
 命令：`init`、`add`、`advance`、`receipt`、`extract`、`intake`、`vocab`、`card`、`graph`、`serve`、`check`、`status`、`list`、`demo`。台账是普通 JSON 文件
@@ -217,9 +229,8 @@ $ readproof graph build --vocab vocab.tsv -o out
 只读界面：看台账状态、看读证四项原文、看缺口表。API 用标准库 `http.server`，前端是 Vite + React。
 
 ```console
-$ cd web && npm install && npm run build && cd ..
-$ readproof --ledger ledger.json serve --port 8000 --vocab vocab.tsv --web-dir web/dist
-serving /path/ledger.json on http://127.0.0.1:8000  (web dir: web/dist)
+$ readproof --ledger ledger.json serve --port 8000 --vocab vocab.tsv
+serving /path/ledger.json on http://127.0.0.1:8000
 ```
 
 四个页面：

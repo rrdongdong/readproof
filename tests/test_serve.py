@@ -224,25 +224,35 @@ class HttpTests(Base):
         self.assertNotIn(b'"papers"', body)
 
     def test_missing_frontend_says_how_to_build_it(self):
-        httpd = serve.serve(
-            ledger_path=self.ledger_path, vocab_path=VOCAB, web_dir=None, port=0
-        )
-        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-        thread.start()
+        """With no bundle and no dev build, the server must explain, not serve nothing."""
+        import readproof.serve as serve_mod
+
+        original_bundle = serve_mod.BUNDLED_WEB_DIR
+        original_cwd = os.getcwd()
+        serve_mod.BUNDLED_WEB_DIR = os.path.join(self.dir, "no-bundle")
+        os.chdir(self.dir)          # so the relative web/dist candidate cannot be found
         try:
+            api = serve_mod.Api(self.ledger_path, VOCAB, None)
+            httpd = serve_mod.ThreadedServer = None
+            from http.server import ThreadingHTTPServer
+
+            handler = type("H", (serve_mod.Handler,), {"api": api})
+            httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
             base = "http://127.0.0.1:%d" % httpd.server_address[1]
             try:
                 with urllib.request.urlopen(base + "/", timeout=5) as response:
-                    status = response.status
-                    body = response.read()
+                    status, body = response.status, response.read()
             except urllib.error.HTTPError as exc:
-                status = exc.code
-                body = exc.read()
+                status, body = exc.code, exc.read()
             self.assertEqual(status, 503)
-            self.assertIn(b"npm install", body)
+            self.assertIn(b"readproof bundle", body)
         finally:
             httpd.shutdown()
             httpd.server_close()
+            os.chdir(original_cwd)
+            serve_mod.BUNDLED_WEB_DIR = original_bundle
 
     def test_missing_web_dir_is_refused_at_startup(self):
         with self.assertRaises(serve.ServeError) as ctx:

@@ -26,7 +26,7 @@ ROOT = os.path.dirname(HERE)
 FIXTURES = os.path.join(ROOT, "tests", "fixtures")
 LEDGER = os.path.join(HERE, "ledger.json")
 VOCAB = os.path.join(HERE, "vocab.tsv")
-WEB_DIR = os.path.join(ROOT, "web", "dist")
+WEB_DIR = os.path.join(ROOT, "readproof", "static")
 
 #: Fixed clock. The ledger's history records timestamps, so without this the committed
 #: demo files would change on every run and `git pull` would hit a conflict after any
@@ -122,9 +122,10 @@ def build():
 
 
 def serve():
-    if not os.path.isdir(WEB_DIR):
+    if not os.path.isfile(os.path.join(WEB_DIR, "index.html")):
         sys.stderr.write(
-            "web/dist is missing — run:\n  cd web && npm install && npm run build\n"
+            "the bundled frontend is missing — rebuild it once with:\n"
+            "  python -m readproof bundle     (needs npm)\n"
         )
         return 10
     env = dict(os.environ)
@@ -162,7 +163,7 @@ def main():
     if args.serve:
         return serve()
     print("\nnext:  python -m readproof --ledger demo/ledger.json serve \\")
-    print("         --port 8010 --vocab demo/vocab.tsv --web-dir web/dist")
+    print("         --port 8010 --vocab demo/vocab.tsv")
     return 0
 
 

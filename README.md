@@ -30,16 +30,27 @@ Most of this repo exists to make those two failures impossible.
 
 ## See it without reading anything
 
+No Node, no build step — the built frontend ships inside the package.
+
 ```console
 $ python demo/build_demo.py --serve
 serving http://127.0.0.1:8010  (Ctrl-C to stop)
 ```
 
 A five-paper synthetic ledger covering `VERIFIED` / `READ_PARTIAL` / `FETCH_FAILED` / `UNREAD`, a
-seven-term vocabulary, and one instance of each of the six gap queries. It needs `web/dist` to
-exist: `make web` first, or `make serve-demo` to do both. Everything in `demo/` is synthetic on
-purpose — a demo that mixes invented papers into a real reading ledger is the exact failure this
-project exists to prevent.
+seven-term vocabulary, and one instance of each of the six gap queries. Everything in `demo/` is
+synthetic on purpose — a demo that mixes invented papers into a real reading ledger is the exact
+failure this project exists to prevent.
+
+**Why it works without Node.** `web/src` is a Vite + React app; its output is committed at
+`readproof/static/` *inside the Python package*, and `readproof serve` finds it by itself. So a
+clone, a wheel, or a `pip install` all have a working UI. `readproof/static/BUILD.json` records a
+hash of `web/src`; CI runs `readproof bundle check` and fails if the committed build is stale, and
+the `web` job rebuilds and asserts the result is byte-identical. Maintainers rebuild with:
+
+```console
+$ cd web && npm install && cd .. && python -m readproof bundle
+```
 
 ## Quickstart
 
@@ -121,7 +132,8 @@ The gates are only real if a caller cannot ignore them, so failure is an exit co
 | `7` | no PDF text extractor available |
 | `8` | PDF failed integrity checks (truncated / not a PDF) |
 | `9` | manual upload does not match the ledger title |
-| `10` | built frontend missing (run `npm run build` in `web/`) |
+| `10` | built frontend missing (run `python -m readproof bundle`) |
+| `11` | npm is not installed, so the frontend cannot be rebuilt |
 | `4` | graph/vocabulary unhealthy (fragmented, unresolved triage, edge without evidence) |
 
 Commands: `init`, `add`, `advance`, `receipt`, `extract`, `intake`, `vocab`, `card`, `graph`, `serve`, `check`, `status`, `list`, `demo`. The ledger is a plain
@@ -256,9 +268,8 @@ A read-only view over the ledger, the receipts and the gaps. The API is `http.se
 standard library; the frontend is Vite + React.
 
 ```console
-$ cd web && npm install && npm run build && cd ..
-$ readproof --ledger ledger.json serve --port 8000 --vocab vocab.tsv --web-dir web/dist
-serving /path/ledger.json on http://127.0.0.1:8000  (web dir: web/dist)
+$ readproof --ledger ledger.json serve --port 8000 --vocab vocab.tsv
+serving /path/ledger.json on http://127.0.0.1:8000
 ```
 
 Four views: **papers** (state badges and receipt dots, so you can see at a glance which paper is

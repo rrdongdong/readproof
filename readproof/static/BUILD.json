@@ -1,0 +1,10 @@
+{
+  "source": "9561df0e9f9f81fdb1beac11a0b5f484f76f968fb36b071b088b5d8a16299f48",
+  "note": "built by `python -m readproof bundle`; committed on purpose",
+  "files": [
+    "/home/ubuntu/.dsh/publish/readproof/readproof/static/assets/index-BU0p6B2u.js",
+    "/home/ubuntu/.dsh/publish/readproof/readproof/static/assets/index-DlkSiojs.css",
+    "/home/ubuntu/.dsh/publish/readproof/readproof/static/index.html",
+    "index.html"
+  ]
+}

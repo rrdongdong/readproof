@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "readproof"
-version = "0.6.5"
+version = "0.7.0"
 description = "A research assistant that refuses to pretend it read something."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -25,3 +25,8 @@ readproof = "readproof.cli:main"
 
 [tool.setuptools]
 packages = ["readproof"]
+
+[tool.setuptools.package-data]
+# The built frontend ships inside the package so `pip install readproof` has a working
+# UI without Node. Rebuild it with: python -m readproof bundle
+readproof = ["static/*", "static/assets/*"]
