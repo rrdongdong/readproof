@@ -751,7 +751,27 @@ COMMANDS = {
 }
 
 
+def _utf8_streams():
+    """Make our own output UTF-8, whatever the console or pipe claims to be.
+
+    On a Chinese Windows install, a piped stdout is GBK (cp936). The gap table contains
+    symbols like U+27C2, which GBK cannot encode, so printing it killed the process with
+    a UnicodeEncodeError — a crash caused by a glyph. Reconfiguring removes the whole
+    class of failure, and ``errors="replace"`` keeps a genuinely unrepresentable console
+    from being able to stop the work.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
 def main(argv=None):
+    _utf8_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.command:

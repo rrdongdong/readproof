@@ -42,7 +42,12 @@ def cli(*args, expect=(0,)):
     env = dict(os.environ)
     env["PYTHONPATH"] = ROOT + os.pathsep + env.get("PYTHONPATH", "")
     command = [sys.executable, "-m", "readproof", "--ledger", LEDGER] + list(args)
-    result = subprocess.run(command, env=env, capture_output=True, text=True)
+    # readproof writes UTF-8 by design; decoding with the Windows locale (cp936) would
+    # fail on the same symbols that used to break encoding.
+    result = subprocess.run(
+        command, env=env, capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
     if result.returncode not in expect:
         sys.stderr.write("command failed (%d): %s\n%s%s\n"
                          % (result.returncode, " ".join(args), result.stdout, result.stderr))
@@ -126,7 +131,20 @@ def serve():
     return subprocess.call(command, env=env)
 
 
+def _utf8_streams():
+    """The demo prints gap tables, which contain symbols a cp936 pipe cannot encode."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
 def main():
+    _utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--serve", action="store_true", help="serve the UI after building")
     args = parser.parse_args()

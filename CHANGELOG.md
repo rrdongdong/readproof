@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.2 — unreleased
+
+Windows fix: a single glyph could kill a build.
+
+### Fixed
+- `graph build` exited 1 on a Chinese Windows install with
+  `'gbk' codec can't encode character '\u27c2'` — the U+27C2 in the assumption-gap
+  heading. Python uses UTF-8 for an interactive console but the locale encoding (cp936)
+  for a pipe, and GBK cannot encode that character, so the process died while printing a
+  finding. Reported from a real run on Windows.
+  - `cli.main()` now reconfigures its own stdout/stderr to UTF-8 with
+    `errors="replace"`, so no console codec can stop the work; `errors` also covers the
+    case where a glyph genuinely cannot be shown
+  - `demo/build_demo.py` decodes its child as UTF-8 (it was reading the child with the
+    locale) and applies the same reconfigure to its own output
+- 3 regression tests: a cp936 pipe, an ascii console, and a strict cp936 codec, each
+  asserting exit 0 and UTF-8 output
+
+### Note
+This was found by the user running `python demo/build_demo.py --serve` on Windows, not by
+CI — the CI matrix only had Linux. The fix is covered by tests now; the Windows matrix
+remains the honest gap.
+
 ## 0.6.1 — unreleased
 
 A committed demo, and a gate the demo made obvious.

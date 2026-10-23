@@ -1,5 +1,6 @@
 import hashlib
 import os
+import sys
 import pathlib
 import shutil
 import tempfile
@@ -92,7 +93,7 @@ class ExtractorTests(unittest.TestCase):
             os.environ[sources.ENV_OVERRIDE] = self._previous
 
     def test_configured_extractor_is_used(self):
-        self.set_command("python3 %s {} " % FAKE_EXTRACTOR)
+        self.set_command("%s %s {} " % (sys.executable, FAKE_EXTRACTOR))
         found = sources.available()
         self.assertIsNotNone(found)
         self.assertEqual(found[0], "python3")
@@ -104,7 +105,7 @@ class ExtractorTests(unittest.TestCase):
         self.assertEqual(ctx.exception.exit_code, 7)
 
     def test_extract_text_returns_pages_and_meta(self):
-        self.set_command("python3 %s {}" % FAKE_EXTRACTOR)
+        self.set_command("%s %s {}" % (sys.executable, FAKE_EXTRACTOR))
         text, meta = sources.extract_text(str(FIXTURES / "valid.pdf"))
         self.assertIn("Table II", text)
         self.assertEqual(meta["pages"], 7)
@@ -112,17 +113,17 @@ class ExtractorTests(unittest.TestCase):
 
     def test_placeholder_is_optional(self):
         """A command without {pdf} gets the path appended, so plain CLIs work."""
-        self.set_command("python3 %s" % FAKE_EXTRACTOR)
+        self.set_command("%s %s" % (sys.executable, FAKE_EXTRACTOR))
         text, _ = sources.extract_text(str(FIXTURES / "valid.pdf"))
         self.assertIn("Abstract", text)
 
     def test_failing_extractor_reports_failure(self):
-        self.set_command("python3 -c 'import sys; sys.exit(3)'")
+        self.set_command("%s -c 'import sys; sys.exit(3)'" % sys.executable)
         with self.assertRaises(sources.ExtractionFailed):
             sources.extract_text(str(FIXTURES / "valid.pdf"))
 
     def test_silent_extractor_reports_no_text_layer(self):
-        self.set_command("python3 -c 'print()'")
+        self.set_command("%s -c 'print()'" % sys.executable)
         with self.assertRaises(sources.ExtractionFailed) as ctx:
             sources.extract_text(str(FIXTURES / "valid.pdf"))
         self.assertIn("no text layer", str(ctx.exception))
@@ -133,7 +134,7 @@ class IntakeCliTests(unittest.TestCase):
         self.dir = tempfile.mkdtemp(prefix="readproof-intake-")
         self.ledger = os.path.join(self.dir, "ledger.json")
         self._previous = os.environ.get(sources.ENV_OVERRIDE)
-        os.environ[sources.ENV_OVERRIDE] = "python3 %s {}" % FAKE_EXTRACTOR
+        os.environ[sources.ENV_OVERRIDE] = "%s %s {}".strip() % (sys.executable, FAKE_EXTRACTOR)
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
